@@ -212,6 +212,9 @@ class OrionCLI {
     process.stdin.on('data', async (key) => {
       if (this.isProcessing && key !== '\x03' && key !== '\x1B') return;
       
+      // DEBUG: Let's see what key sequences we're actually getting
+      console.log(`KEY DEBUG: "${key}", length: ${key.length}, codes: [${key.split('').map(c => c.charCodeAt(0)).join(', ')}]`);
+      
       // Check for Shift+Tab first (sequence: ESC[Z)
       if (key === '\x1B[Z') {
         this.toggleAutoEdit();
@@ -219,16 +222,19 @@ class OrionCLI {
         return;
       }
       
-      // Check for Ctrl+Enter (more reliable than Shift+Enter for newlines)
-      // Ctrl+Enter = \x0A (10) - Line Feed
-      if (key === '\x0A') {
+      // Check for Ctrl+Enter - try different approaches
+      if (key === '\x0A' ||           // Line Feed (LF)
+          key === '\n' ||             // Newline character  
+          key === String.fromCharCode(10)) {  // Decimal 10
+        console.log('DETECTED: Ctrl+Enter - adding newline');
         this.insertChar('\n');
         this.scheduleRender();
         return;
       }
       
-      // Also check for common Shift+Enter sequences (terminal dependent)
+      // Check for Shift+Enter sequences
       if (key === '\x1B[13;2~' || key === '\x1B\r' || key === '\x1B\n') {
+        console.log('DETECTED: Shift+Enter - adding newline');
         this.insertChar('\n');
         this.scheduleRender();
         return;
@@ -240,8 +246,12 @@ class OrionCLI {
         case 3: // Ctrl+C
           this.exit();
           break;
-        case 13: // Enter (regular)
-          // Only submit if not multiline or if Ctrl+Enter
+        case 10: // Line Feed - should be caught above, but just in case
+          console.log('DETECTED: LF in switch - adding newline');
+          this.insertChar('\n');
+          break;
+        case 13: // Carriage Return (Enter)
+          console.log('DETECTED: Regular Enter - submitting');
           await this.handleEnter();
           break;
         case 127: // Backspace
