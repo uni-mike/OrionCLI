@@ -14,6 +14,7 @@ const OpenAI = require('openai').default;
 const fs = require('fs').promises;
 const path = require('path');
 const OrionToolRegistry = require('./src/tools/orion-tool-registry');
+const JsonToolParser = require('./src/tools/json-tool-parser');
 const TaskUnderstanding = require('./src/intelligence/task-understanding');
 const SmartOrchestration = require('./src/intelligence/smart-orchestration');
 const EnhancedOrchestration = require('./src/intelligence/enhanced-orchestration');
@@ -873,28 +874,67 @@ class OrionCLI {
       // Add tools if task requires them
       if (taskInfo.needsTools) {
         completionParams.tools = this.toolRegistry.getToolDefinitions(taskInfo.tools);
+        completionParams.tool_choice = 'auto'; // Force tool usage when appropriate
       }
 
       const completion = await usingClient.chat.completions.create(completionParams);
       const response = completion.choices[0].message.content;
       
-      // Handle tool calls if present
+      // Handle tool calls if present (proper OpenAI format)
       if (completion.choices[0].message.tool_calls) {
         await this.handleToolCalls(completion.choices[0].message.tool_calls);
       }
       
-      // Only process response if there is content (AI might only return tool calls)
+      // Check for JSON tool calls in response (Azure OpenAI fallback)
       if (response) {
-        // Add response line by line for better display
-        const lines = response.split('\n');
-        lines.forEach((line, index) => {
-          this.addMessage('assistant', line || (index < lines.length - 1 ? ' ' : ''));
-        });
+        const parsed = JsonToolParser.processResponse(response);
+        
+        // If JSON tools were found, execute them
+        if (parsed.hasTools && parsed.toolCalls.length > 0) {
+          // Execute the extracted tool calls
+          for (const toolCall of parsed.toolCalls) {
+            await this.handleToolCalls([toolCall]);
+          }
+          
+          // Only show the cleaned response (without JSON)
+          if (parsed.cleanText) {
+            const lines = parsed.cleanText.split('\n');
+            lines.forEach((line, index) => {
+              if (line.trim()) {
+                this.addMessage('assistant', line);
+              }
+            });
+          }
+          
+          // Check if there's an active plan to continue
+          if (this.enhancedOrchestration.activePlan) {
+            const planStatus = this.enhancedOrchestration.getPlanStatus();
+            if (planStatus.remainingTodos > 0) {
+              // Continue with next todo automatically
+              this.addMessage('system', colors.info(`⏭️ Continuing with next task (${planStatus.remainingTodos} remaining)`));
+              this.render();
+              
+              // Process next step after short delay
+              setTimeout(() => {
+                const nextTodo = this.enhancedOrchestration.activePlan.todos.find(t => t.status === 'pending');
+                if (nextTodo) {
+                  this.processWithAI(`Continue with: ${nextTodo.content}`);
+                }
+              }, 500);
+            }
+          }
+        } else {
+          // No JSON tools, show response normally
+          const lines = response.split('\n');
+          lines.forEach((line, index) => {
+            this.addMessage('assistant', line || (index < lines.length - 1 ? ' ' : ''));
+          });
+        }
         
         // Add assistant response to conversation history
         this.conversationHistory.push({
           role: 'assistant',
-          content: response
+          content: parsed.cleanText || response
         });
       }
     } catch (error) {
@@ -1036,15 +1076,42 @@ class OrionCLI {
   }
   
   buildSystemPrompt(taskInfo, contextInfo) {
-    let prompt = `You are OrionCLI, an advanced AI assistant with access to powerful tools and real-time capabilities.
+    let prompt = `You are OrionCLI, an advanced AI assistant with access to powerful tools.
 
-CRITICAL INSTRUCTIONS:
-1. You MUST use tools when they are available and relevant to the task
-2. When asked about files, IMMEDIATELY use the read_file tool - don't ask for permission
-3. When user says "yes", "ok", "do it" - execute the action you just proposed
-4. Use proper tool calling format with function calls, never return raw JSON
-5. After using tools, explain the results in natural language
-6. Be proactive - if user asks to modify something, read it first then modify
+CRITICAL RULES FOR TOOL USAGE:
+
+1. NEVER output JSON directly in your response
+2. When you need to use a tool, use the OpenAI function calling format
+3. DO NOT write things like {"name":"file.md","content":"..."} in your messages
+4. DO NOT show tool parameters to the user
+5. After tools execute, explain the results in natural language
+
+WHEN TO USE TOOLS:
+- User asks to create a file → Use write_file or create_file tool
+- User asks to read a file → Use read_file tool immediately
+- User asks to edit a file → Use edit_file or str_replace_editor tool
+- User says "yes" to continue → Execute the action you proposed
+
+HOW TO USE TOOLS:
+- Tools are called through the function calling interface
+- You describe what you'll do in natural language
+- The tool executes behind the scenes
+- You then explain the results
+
+CORRECT OUTPUT FORMAT:
+✅ GOOD: "I'll create a plan document for your photo gallery app."
+✅ GOOD: "Let me read the README file to understand what it contains."
+✅ GOOD: "I've successfully created the file with the architecture plan."
+
+❌ WRONG: {"name":"file.md","content":"..."}
+❌ WRONG: {"tool":"read_file","filename":"README.md"}
+❌ WRONG: Showing any JSON in your response
+
+WHEN USER SAYS "YES" OR CONTINUES:
+- Don't repeat what you'll do
+- Just execute the next action
+- Explain results after execution
+- Continue with remaining tasks automatically
     
 Current Context:
 - Working Directory: ${contextInfo.workingDir}
@@ -1054,7 +1121,7 @@ Current Context:
 
 Available Tools: ${taskInfo.needsTools ? taskInfo.tools.join(', ') : 'none required'}
 
-${taskInfo.needsTools ? 'YOU HAVE TOOLS AVAILABLE - USE THEM!' : ''}`;
+${taskInfo.needsTools ? '\n⚠️ TOOLS ARE AVAILABLE - USE THEM PROPERLY, NOT AS JSON OUTPUT!' : ''}`;
 
     // Task-specific instructions
     if (taskInfo.type === 'time query') {
@@ -1652,15 +1719,44 @@ IMPORTANT: Always use the RIGHT tool for the task. Read files when asked ABOUT t
       try {
         const args = JSON.parse(toolCall.function.arguments);
         let result = '';
+        let retries = 0;
+        const maxRetries = 2;
         
-        // Handle built-in tools
-        if (toolCall.function.name === 'execute_bash') {
-          result = await this.executeBashCommand(args.command);
-        } else if (toolCall.function.name === 'web_search') {
-          result = `Web search for "${args.query}" would be performed here`;
-        } else {
-          // Use modular tool registry for all other tools
-          result = await this.toolRegistry.executeTool(toolCall.function.name, args);
+        // Retry logic for tool execution
+        while (retries <= maxRetries) {
+          try {
+            // Handle built-in tools
+            if (toolCall.function.name === 'execute_bash') {
+              result = await this.executeBashCommand(args.command);
+            } else if (toolCall.function.name === 'web_search') {
+              result = `Web search for "${args.query}" would be performed here`;
+            } else {
+              // Use modular tool registry for all other tools
+              result = await this.toolRegistry.executeTool(toolCall.function.name, args);
+            }
+            
+            // Success - break retry loop
+            break;
+          } catch (toolError) {
+            retries++;
+            if (retries > maxRetries) {
+              // Max retries reached, try to recover
+              this.addMessage('system', colors.warning(`⚠️ Tool failed, attempting recovery...`));
+              
+              // Try alternative approach
+              if (toolCall.function.name === 'write_file' || toolCall.function.name === 'create_file') {
+                // Fallback to basic file write
+                const fs = require('fs').promises;
+                await fs.writeFile(args.filename || args.path, args.content || '', 'utf8');
+                result = { output: `✅ File created via fallback: ${args.filename || args.path}` };
+              } else {
+                throw toolError;
+              }
+            } else {
+              // Wait before retry
+              await new Promise(resolve => setTimeout(resolve, 500 * retries));
+            }
+          }
         }
         
         // Show clean result (handle null/undefined results and objects)
