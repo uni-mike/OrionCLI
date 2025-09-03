@@ -219,8 +219,15 @@ class OrionCLI {
         return;
       }
       
-      // Check for Shift+Enter (add newline instead of submit)
-      // Most terminals send this sequence for Shift+Enter
+      // Check for Ctrl+Enter (more reliable than Shift+Enter for newlines)
+      // Ctrl+Enter = \x0A (10) - Line Feed
+      if (key === '\x0A') {
+        this.insertChar('\n');
+        this.scheduleRender();
+        return;
+      }
+      
+      // Also check for common Shift+Enter sequences (terminal dependent)
       if (key === '\x1B[13;2~' || key === '\x1B\r' || key === '\x1B\n') {
         this.insertChar('\n');
         this.scheduleRender();
@@ -375,6 +382,7 @@ class OrionCLI {
       const shortcuts = [
         colors.dim('Tab: Complete'),
         colors.dim('↑↓: History'),
+        colors.dim('Ctrl+Enter: New line'),
         colors.dim('Shift+Tab: Auto-edit'),
         colors.dim('Ctrl+C: Exit')
       ];
