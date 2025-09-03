@@ -13,7 +13,7 @@ const figlet = require('figlet');
 const OpenAI = require('openai').default;
 const fs = require('fs').promises;
 const path = require('path');
-// Tool system will be integrated with existing src/tools structure
+const OrionToolRegistry = require('./src/tools/orion-tool-registry');
 const { exec } = require('child_process');
 const { promisify } = require('util');
 const execAsync = promisify(exec);
@@ -70,6 +70,7 @@ class OrionCLI {
     this.conversationHistory = [];
     this.config = this.loadConfig();
     this.client = this.createClient();
+    this.toolRegistry = new OrionToolRegistry();
     this.activeFile = null;
     this.autoEdit = false;
     this.isProcessing = false;
@@ -808,7 +809,7 @@ class OrionCLI {
       
       // Add tools if task requires them
       if (taskInfo.needsTools) {
-        completionParams.tools = this.getAvailableTools(taskInfo.tools);
+        completionParams.tools = this.toolRegistry.getToolDefinitions(taskInfo.tools);
       }
 
       const completion = await usingClient.chat.completions.create(completionParams);
@@ -897,7 +898,7 @@ class OrionCLI {
     }
     
     // Conversion and encoding
-    if (/\b(convert|encode|decode|base64|hash|md5|sha|transform|format)\b/.test(lowerInput)) {
+    if (/\b(convert|encode|decode|base64|hash|md5|sha|transform|format|json|url)\b/.test(lowerInput)) {
       return {
         type: 'conversion task',
         needsTools: true,
@@ -906,12 +907,22 @@ class OrionCLI {
       };
     }
     
-    // Web searches
-    if (/\b(search|find|lookup|what is|who is|weather|news)\b/.test(lowerInput)) {
+    // Docker operations
+    if (/\b(docker|container|compose|dockerfile|image|pod)\b/.test(lowerInput)) {
       return {
-        type: 'information query',
+        type: 'docker operation',
         needsTools: true,
-        tools: ['web-search'],
+        tools: ['docker-tools', 'system-tools', 'bash'],
+        priority: 'high'
+      };
+    }
+    
+    // Web searches - Enhanced for programming and security
+    if (/\b(search|find|lookup|what is|who is|weather|news|documentation|docs|fix|bug|error|solution|help)\b/.test(lowerInput)) {
+      return {
+        type: 'information query', 
+        needsTools: true,
+        tools: ['web-search-tools', 'bash'],
         priority: 'medium'
       };
     }
@@ -989,7 +1000,9 @@ Available Tools: ${taskInfo.needsTools ? taskInfo.tools.join(', ') : 'none requi
     return prompt;
   }
   
-  getAvailableTools(toolNames) {
+  // OLD METHOD REMOVED - Now using modular OrionToolRegistry
+  
+  async handleToolCalls(toolCalls) {
     const tools = [];
     
     if (toolNames.includes('bash')) {
@@ -1488,60 +1501,14 @@ Available Tools: ${taskInfo.needsTools ? taskInfo.tools.join(', ') : 'none requi
         const args = JSON.parse(toolCall.function.arguments);
         let result = '';
         
-        switch (toolCall.function.name) {
-          case 'execute_bash':
-            result = await this.executeBashCommand(args.command);
-            break;
-          case 'web_search':
-            result = `Web search for "${args.query}" would be performed here`;
-            break;
-          
-          // File tools
-          case 'write_file':
-            result = await this.writeFile(args.filename, args.content);
-            break;
-          case 'read_file':
-            result = await this.readFile(args.filename);
-            break;
-          case 'edit_file':
-            result = await this.editFile(args.filename, args.old_text, args.new_text);
-            break;
-          case 'list_files':
-            result = await this.listFiles(args.directory || '.');
-            break;
-            
-          // Code tools
-          case 'analyze_code':
-            result = await this.analyzeCode(args.filename, args.analysis_type);
-            break;
-          case 'run_tests':
-            result = await this.runTests(args.test_file, args.framework);
-            break;
-          case 'format_code':
-            result = await this.formatCode(args.filename, args.formatter);
-            break;
-            
-          // Git tools
-          case 'git_status':
-            result = await this.executeBashCommand('git status');
-            break;
-          case 'git_diff':
-            result = await this.executeBashCommand(args.filename ? `git diff ${args.filename}` : 'git diff');
-            break;
-          case 'git_commit':
-            result = await this.gitCommit(args.message, args.files);
-            break;
-            
-          // System tools
-          case 'system_info':
-            result = await this.getSystemInfo();
-            break;
-          case 'process_list':
-            result = await this.getProcessList(args.filter);
-            break;
-          case 'disk_usage':
-            result = await this.getDiskUsage(args.path || '.');
-            break;
+        // Handle built-in tools
+        if (toolCall.function.name === 'execute_bash') {
+          result = await this.executeBashCommand(args.command);
+        } else if (toolCall.function.name === 'web_search') {
+          result = `Web search for "${args.query}" would be performed here`;
+        } else {
+          // Use modular tool registry for all other tools
+          result = await this.toolRegistry.executeTool(toolCall.function.name, args);
         }
         
         // Show clean result
