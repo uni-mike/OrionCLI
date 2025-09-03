@@ -372,9 +372,23 @@ class OrionCLI {
   }
 
   positionCursor() {
-    const inputLine = this.terminalHeight - 3;
-    const cursorCol = this.cursorPosition + 3;
-    process.stdout.write(`\x1B[${inputLine};${cursorCol}H`);
+    // CRITICAL: Cursor positioning logic - DO NOT MODIFY without testing!
+    // 
+    // Terminal layout from bottom up:
+    // Line N     : Help text (shortcuts)
+    // Line N-1   : Input box bottom border  ╰──╯
+    // Line N-2   : Input box content        │ text here │  <-- CURSOR GOES HERE
+    // Line N-3   : Input box top border     ╭──╮  
+    // Line N-4   : Status line
+    // Line N-5+  : Messages
+    //
+    // The boxen creates a 3-line input box, we want cursor on the content line (N-2)
+    const inputContentLine = this.terminalHeight - 2; // Content line of the input box
+    const cursorCol = this.cursorPosition + 3; // +3 accounts for: │ + space + left_padding
+    
+    // Move cursor to exact position inside input box content area
+    process.stdout.write(`\x1B[${inputContentLine};${cursorCol}H`);
+    // Make cursor visible
     process.stdout.write('\x1B[?25h');
   }
 
