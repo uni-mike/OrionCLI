@@ -66,6 +66,7 @@ class OrionCLI {
     this.cursorPosition = 0;
     this.history = [];
     this.historyIndex = -1;
+    this.conversationHistory = [];
     this.config = this.loadConfig();
     this.client = this.createClient();
     this.activeFile = null;
@@ -544,6 +545,7 @@ class OrionCLI {
         break;
       case 'clear':
         this.messages = [];
+        this.conversationHistory = [];
         break;
       case 'models':
         this.showModels();
@@ -757,14 +759,23 @@ class OrionCLI {
       // Build context info
       const contextInfo = this.buildContext(input, taskInfo);
       
-      // Enhanced system prompt with tool awareness
+      // Add user message to conversation history
+      this.conversationHistory.push({
+        role: 'user',
+        content: input
+      });
+      
+      // Enhanced system prompt with tool awareness  
       const systemPrompt = this.buildSystemPrompt(taskInfo, contextInfo);
+      
+      // Build messages array starting with system prompt
       const messages = [
         {
           role: 'system',
           content: systemPrompt
         },
-        { role: 'user', content: input }
+        // Add conversation history (keep last 40 messages to manage context)
+        ...this.conversationHistory.slice(-40)
       ];
 
       // Build completion params based on model capabilities
@@ -797,6 +808,11 @@ class OrionCLI {
         this.addMessage('assistant', line || (index < lines.length - 1 ? ' ' : ''));
       });
       
+      // Add assistant response to conversation history
+      this.conversationHistory.push({
+        role: 'assistant',
+        content: response
+      });
     } catch (error) {
       this.addMessage('error', `${error.message}`);
     } finally {
