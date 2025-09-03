@@ -10,12 +10,14 @@ class TaskUnderstanding {
       // File Operations
       readFile: {
         patterns: [
-          /what.*(?:is|does|about|in).*(?:file|document)/i,
-          /show.*(?:me)?.*(?:file|content)/i,
-          /(?:read|view|open|look at|check|display).*file/i,
+          /what.*(?:is|does|about|in).*(?:readme|package\.json|config|file|document)/i,
+          /what.*(?:readme|package\.json|tsconfig|webpack|\.md|\.js|\.json).*(?:about|is|does)/i,
+          /explain.*(?:readme|package\.json|config|file|code)/i,
+          /show.*(?:me)?.*(?:readme|file|content)/i,
+          /(?:read|view|open|look at|check|display).*(?:readme|file)/i,
           /what's.*in.*\.[\w]+/i,
-          /explain.*(?:this)?.*(?:file|code)/i,
-          /analyze.*(?:this)?.*(?:file|code)/i
+          /analyze.*(?:this)?.*(?:file|code)/i,
+          /^what is \w+\.?\w* about\??$/i
         ],
         confidence: 0.95,
         tools: ['read_file'],
@@ -128,9 +130,16 @@ class TaskUnderstanding {
     // Context enhancement patterns
     this.contextEnhancers = {
       fileContext: {
-        pattern: /(?:in|from|at|within).*[\/\\]?[\w\-\.]+\.[\w]+/i,
+        pattern: /(?:readme|package\.json|tsconfig|webpack|config|[\w\-\.]+\.[\w]+)/i,
         extractor: (text) => {
-          const match = text.match(/[\/\\]?[\w\-\.\/\\]+\.[\w]+/);
+          // Check for common file references
+          if (/readme/i.test(text)) return { file: 'README.md' };
+          if (/package\.json/i.test(text)) return { file: 'package.json' };
+          if (/tsconfig/i.test(text)) return { file: 'tsconfig.json' };
+          if (/webpack/i.test(text)) return { file: 'webpack.config.js' };
+          
+          // Extract any file with extension
+          const match = text.match(/[\w\-\.]+\.[\w]+/);
           return match ? { file: match[0] } : null;
         }
       },

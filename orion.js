@@ -1070,14 +1070,21 @@ ${taskInfo.needsTools ? 'YOU HAVE TOOLS AVAILABLE - USE THEM!' : ''}`;
     }
     
     if (taskInfo.type === 'file operation') {
-      prompt += `\n\nFILE OPERATION REQUIREMENTS:
-- "what is X about" / "explain X" / "show X" → IMMEDIATELY use read_file tool
-- "modify X" / "edit X" / "change X" → FIRST read_file, THEN edit_file
-- "create X" → use write_file tool
-- "delete X" → use delete_file tool
-- User says "yes" after you propose an action → EXECUTE IT NOW
-- DO NOT ask "should I read it?" - just read it
-- DO NOT describe what you'll do - just do it`;
+      prompt += `\n\nCRITICAL FILE OPERATION RULES:
+      
+WHEN USER ASKS "What is [filename] about?" or similar:
+1. Use read_file tool with filename parameter IMMEDIATELY
+2. DO NOT use list_files first
+3. DO NOT ask for confirmation
+4. After reading, explain the contents in natural language
+
+Examples:
+- "What is README about?" → read_file(filename: "README.md")
+- "What is package.json?" → read_file(filename: "package.json")
+- "Show me the config" → read_file(filename: "config.js" or similar)
+
+NEVER list files when asked about a specific file!
+ALWAYS read the file directly!`;
     }
     
     // Add comprehensive tool usage instructions
