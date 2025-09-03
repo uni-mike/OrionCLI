@@ -15,6 +15,8 @@ const fs = require('fs').promises;
 const path = require('path');
 const OrionToolRegistry = require('./src/tools/orion-tool-registry');
 const JsonToolParser = require('./src/tools/json-tool-parser');
+const PermissionManager = require('./src/permissions/permission-manager');
+const PermissionPrompt = require('./src/permissions/permission-prompt');
 const TaskUnderstanding = require('./src/intelligence/task-understanding');
 const SmartOrchestration = require('./src/intelligence/smart-orchestration');
 const EnhancedOrchestration = require('./src/intelligence/enhanced-orchestration');
@@ -82,6 +84,15 @@ class OrionCLI {
     this.orchestration = new SmartOrchestration();
     this.enhancedOrchestration = new EnhancedOrchestration();
     this.projectAwareness = new ProjectAwareness();
+    
+    // Permission system
+    this.permissionManager = new PermissionManager();
+    this.permissionPrompt = new PermissionPrompt();
+    
+    // Spinner animation
+    this.spinnerFrames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+    this.spinnerIndex = 0;
+    this.spinnerInterval = null;
     
     this.activeFile = null;
     this.autoEdit = false;
@@ -291,6 +302,42 @@ class OrionCLI {
     this.scheduleRender();
   }
 
+  /**
+   * Start spinner animation
+   */
+  startSpinner() {
+    if (!this.spinnerInterval) {
+      this.spinnerInterval = setInterval(() => {
+        this.spinnerIndex = (this.spinnerIndex + 1) % this.spinnerFrames.length;
+        if (this.isProcessing) {
+          this.updateStatusLine();
+        }
+      }, 80);
+    }
+  }
+  
+  /**
+   * Stop spinner animation
+   */
+  stopSpinner() {
+    if (this.spinnerInterval) {
+      clearInterval(this.spinnerInterval);
+      this.spinnerInterval = null;
+    }
+  }
+  
+  /**
+   * Update status line with spinner
+   */
+  updateStatusLine() {
+    if (this.isProcessing && this.spinnerInterval) {
+      const spinner = this.spinnerFrames[this.spinnerIndex];
+      // Update the processing indicator in the status
+      this.processingIndicator = `${spinner} Processing...`;
+      this.render();
+    }
+  }
+  
   _performRender() {
     const output = [];
     
@@ -440,7 +487,8 @@ class OrionCLI {
       ];
       output += shortcuts.join(colors.dim(' • '));
     } else {
-      output += colors.warning('⏳ Processing... Press Esc to cancel');
+      const spinner = this.spinnerFrames[this.spinnerIndex] || '⏳';
+      output += colors.warning(`${spinner} Processing... Press Esc to cancel`);
     }
     
     return output;
@@ -613,6 +661,9 @@ class OrionCLI {
       case 'tools':
         this.showTools();
         break;
+      case 'permissions':
+        await this.showPermissions();
+        break;
       case 'about':
         this.showAbout();
         break;
@@ -635,6 +686,7 @@ class OrionCLI {
     this.addMessage('system', colors.accent('/file') + '     - Set active file for context');
     this.addMessage('system', colors.accent('/auto') + '     - Toggle auto-edit mode');
     this.addMessage('system', colors.accent('/tools') + '    - Show available tools');
+    this.addMessage('system', colors.accent('/permissions') + ' - Manage tool permissions');
     this.addMessage('system', colors.accent('/about') + '    - About OrionCLI');
     this.addMessage('system', colors.accent('/exit') + '     - Exit the application');
     this.addMessage('system', '');
@@ -668,6 +720,21 @@ class OrionCLI {
     
     this.addMessage('system', '');
     this.addMessage('system', colors.dim('Use /model <name> to switch'));
+  }
+
+  async showPermissions() {
+    const stats = this.permissionManager.getStats();
+    
+    this.addMessage('system', colors.primary.bold('📋 Permission Settings'));
+    this.addMessage('system', colors.dim('─'.repeat(40)));
+    this.addMessage('system', `Total Rules: ${stats.totalRules}`);
+    this.addMessage('system', `  ${colors.success('✓ Allow')}: ${stats.allowRules}`);
+    this.addMessage('system', `  ${colors.warning('? Ask')}: ${stats.askRules}`);
+    this.addMessage('system', `  ${colors.error('✗ Deny')}: ${stats.denyRules}`);
+    this.addMessage('system', `  Session: ${stats.sessionPermissions}`);
+    this.addMessage('system', '');
+    this.addMessage('system', colors.dim('Use /permissions to manage settings'));
+    this.addMessage('system', colors.dim('Permissions are saved in ~/.orion/'));
   }
 
   showTools() {
@@ -769,6 +836,7 @@ class OrionCLI {
 
   async processWithAI(input) {
     this.isProcessing = true;
+    this.startSpinner();
     
     // Use intelligent task understanding system
     const intentAnalysis = await this.taskUnderstanding.analyzeIntent(input);
@@ -941,6 +1009,7 @@ class OrionCLI {
       this.addMessage('error', `${error.message}`);
     } finally {
       this.isProcessing = false;
+      this.stopSpinner();
     }
   }
 
