@@ -129,7 +129,7 @@ class OrionCLI {
     this.spinnerInterval = null;
     
     this.activeFile = null;
-    this.autoEdit = false;
+    this.autoEdit = true;  // Always enabled - otherwise AI does nothing
     this.isProcessing = false;
     this.showUserMessages = false; // Hide user messages by default to reduce spam
     this.terminalWidth = process.stdout.columns || 80;

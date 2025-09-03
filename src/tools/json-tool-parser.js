@@ -26,25 +26,29 @@ class JsonToolParser {
     const toolCalls = [];
     
     try {
-      // Try to extract JSON objects from the text
-      const jsonMatches = text.match(/\{[^{}]*\{[^{}]*\}[^{}]*\}|\{[^{}]+\}/g);
+      // FIRST: Try to parse the entire response as JSON (best case - AI outputs only JSON)
+      const trimmed = text.trim();
+      if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+        try {
+          const parsed = JSON.parse(trimmed);
+          const toolCall = this.convertToToolCall(parsed);
+          if (toolCall) {
+            return [toolCall];  // Return immediately if successful
+          }
+        } catch (e) {
+          // Not valid JSON, continue to regex extraction
+        }
+      }
+      
+      // FALLBACK: Use regex to extract JSON from mixed text
+      // Updated regex to handle nested JSON objects properly
+      const jsonMatches = text.match(/\{(?:[^{}]|(\{[^{}]*\}))*\}/g);
       
       if (jsonMatches) {
         for (const jsonStr of jsonMatches) {
           try {
-            // Clean up malformed JSON (handle trailing commas, incomplete objects)
-            let cleanJson = jsonStr
-              .replace(/,\s*}/, '}')  // Remove trailing commas
-              .replace(/,\s*$/, '');   // Remove trailing commas at end
-            
-            // Check for incomplete JSON like {"tool": "write_file", "args": }
-            if (cleanJson.match(/["']args["']\s*:\s*}/) || cleanJson.match(/["']args["']\s*:\s*$/)) {
-              // Skip malformed JSON with empty args
-              console.error('Skipping malformed JSON with empty args:', cleanJson);
-              continue;
-            }
-            
-            const parsed = JSON.parse(cleanJson);
+            // Try direct parse first
+            const parsed = JSON.parse(jsonStr);
             
             // Convert to standard tool call format
             const toolCall = this.convertToToolCall(parsed);
