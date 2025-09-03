@@ -16,6 +16,7 @@ const path = require('path');
 const OrionToolRegistry = require('./src/tools/orion-tool-registry');
 const TaskUnderstanding = require('./src/intelligence/task-understanding');
 const SmartOrchestration = require('./src/intelligence/smart-orchestration');
+const EnhancedOrchestration = require('./src/intelligence/enhanced-orchestration');
 const ProjectAwareness = require('./src/intelligence/project-awareness');
 const { exec } = require('child_process');
 const { promisify } = require('util');
@@ -78,6 +79,7 @@ class OrionCLI {
     // Intelligence systems
     this.taskUnderstanding = new TaskUnderstanding();
     this.orchestration = new SmartOrchestration();
+    this.enhancedOrchestration = new EnhancedOrchestration();
     this.projectAwareness = new ProjectAwareness();
     
     this.activeFile = null;
@@ -818,14 +820,24 @@ class OrionCLI {
         Object.assign(contextInfo, intentAnalysis.context);
       }
       
-      // Create execution plan for complex tasks
-      let executionPlan = null;
-      if (intentAnalysis && intentAnalysis.suggestedTools && intentAnalysis.suggestedTools.length > 1) {
-        executionPlan = await this.orchestration.planExecution(input, contextInfo);
-        if (executionPlan.workflow) {
-          this.addMessage('system', colors.info(`📋 Using ${executionPlan.workflow} workflow`));
-          this.render();
-        }
+      // Create execution plan using enhanced orchestration
+      const executionPlan = await this.enhancedOrchestration.buildExecutionPlan(input, contextInfo);
+      
+      // Check if todo planning is required
+      const todoCheck = this.enhancedOrchestration.requiresTodoPlanning(input, contextInfo);
+      if (todoCheck.required) {
+        // Display the execution plan with todos
+        const planDisplay = this.enhancedOrchestration.formatPlanForDisplay(executionPlan);
+        this.addMessage('system', colors.info(planDisplay));
+        this.render();
+        
+        // Add todos to system prompt for AI awareness
+        contextInfo.activePlan = executionPlan;
+        contextInfo.todos = executionPlan.todos;
+      } else if (executionPlan.toolChain.length > 1) {
+        // Simple multi-tool execution
+        this.addMessage('system', colors.info(`⚙️ Executing ${executionPlan.toolChain.length} tools in sequence`));
+        this.render();
       }
       
       // Add user message to conversation history
@@ -1026,9 +1038,13 @@ class OrionCLI {
   buildSystemPrompt(taskInfo, contextInfo) {
     let prompt = `You are OrionCLI, an advanced AI assistant with access to powerful tools and real-time capabilities.
 
-IMPORTANT: When using tools, you MUST use the proper tool calling format, NOT return JSON strings.
-When asked about a file, use the read_file tool to read it, then explain its contents in natural language.
-Always provide helpful, conversational responses after using tools.
+CRITICAL INSTRUCTIONS:
+1. You MUST use tools when they are available and relevant to the task
+2. When asked about files, IMMEDIATELY use the read_file tool - don't ask for permission
+3. When user says "yes", "ok", "do it" - execute the action you just proposed
+4. Use proper tool calling format with function calls, never return raw JSON
+5. After using tools, explain the results in natural language
+6. Be proactive - if user asks to modify something, read it first then modify
     
 Current Context:
 - Working Directory: ${contextInfo.workingDir}
@@ -1036,7 +1052,9 @@ Current Context:
 - Task Type: ${taskInfo.type}
 - Session Time: ${Math.floor(contextInfo.sessionTime / 60)}m
 
-Available Tools: ${taskInfo.needsTools ? taskInfo.tools.join(', ') : 'none required'}`;
+Available Tools: ${taskInfo.needsTools ? taskInfo.tools.join(', ') : 'none required'}
+
+${taskInfo.needsTools ? 'YOU HAVE TOOLS AVAILABLE - USE THEM!' : ''}`;
 
     // Task-specific instructions
     if (taskInfo.type === 'time query') {
@@ -1052,12 +1070,14 @@ Available Tools: ${taskInfo.needsTools ? taskInfo.tools.join(', ') : 'none requi
     }
     
     if (taskInfo.type === 'file operation') {
-      prompt += `\n\nFor file operations:
-- When asked "what is X file about" or "explain X file" → Use read_file to READ the content first, then explain it
-- When asked to check if file exists → Use file_exists 
-- When asked to modify → Use edit_file or write_file
-- When asked to delete → Use delete_file with confirmation
-- ALWAYS read files when users want to know ABOUT them, not just if they exist`;
+      prompt += `\n\nFILE OPERATION REQUIREMENTS:
+- "what is X about" / "explain X" / "show X" → IMMEDIATELY use read_file tool
+- "modify X" / "edit X" / "change X" → FIRST read_file, THEN edit_file
+- "create X" → use write_file tool
+- "delete X" → use delete_file tool
+- User says "yes" after you propose an action → EXECUTE IT NOW
+- DO NOT ask "should I read it?" - just read it
+- DO NOT describe what you'll do - just do it`;
     }
     
     // Add comprehensive tool usage instructions

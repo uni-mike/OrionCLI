@@ -3,6 +3,7 @@
  * Integrates all tool categories for OrionCLI
  */
 const FileTools = require('./file-tools');
+const AdvancedFileTools = require('./advanced-file-tools');
 const GitTools = require('./git-tools');
 const SystemTools = require('./system-tools');
 const SSHTools = require('./ssh-tools');
@@ -15,6 +16,7 @@ class OrionToolRegistry {
   constructor() {
     this.toolCategories = {
       'file-tools': FileTools,
+      'advanced-file-tools': AdvancedFileTools,
       'git-tools': GitTools,
       'system-tools': SystemTools,
       'ssh-tools': SSHTools,
