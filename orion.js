@@ -871,8 +871,10 @@ class OrionCLI {
       };
     }
     
-    // File operations
-    if (/\b(read|write|edit|file|create|delete|ls|pwd|cat|save|md|\.md|markdown|document|plan)\b/.test(lowerInput)) {
+    // File operations - enhanced detection
+    if (/\b(read|write|edit|file|create|delete|ls|pwd|cat|save|md|\.md|markdown|document|plan)\b/.test(lowerInput) ||
+        /\b(what is|explain|show|about|describe|tell me about|contents? of)\b.*\b(file|\.md|\.txt|\.js|\.json|readme)\b/i.test(lowerInput) ||
+        /\.(md|txt|js|json|yml|yaml|xml|html|css|py|ts|tsx|jsx)(\s|$)/i.test(lowerInput)) {
       return {
         type: 'file operation',
         needsTools: true,
@@ -1006,8 +1008,73 @@ Available Tools: ${taskInfo.needsTools ? taskInfo.tools.join(', ') : 'none requi
     }
     
     if (taskInfo.type === 'file operation') {
-      prompt += `\n\nFor file operations, use appropriate file tools and provide clear status updates.`;
+      prompt += `\n\nFor file operations:
+- When asked "what is X file about" or "explain X file" → Use read_file to READ the content first, then explain it
+- When asked to check if file exists → Use file_exists 
+- When asked to modify → Use edit_file or write_file
+- When asked to delete → Use delete_file with confirmation
+- ALWAYS read files when users want to know ABOUT them, not just if they exist`;
     }
+    
+    // Add comprehensive tool usage instructions
+    prompt += `\n\n📚 TOOL USAGE GUIDE:
+
+FILE TOOLS:
+• read_file → Use when user asks "what is X about", "explain X", "show me X"
+• write_file → Create new files with content
+• edit_file → Modify existing file content by replacing text
+• delete_file → Remove files (always confirm first unless force:true)
+• update_file → Append/prepend to existing files
+• file_exists → ONLY when asked if file exists, NOT for reading content
+• list_files → Show directory contents
+
+GIT TOOLS:
+• git_status → Check repo status
+• git_diff → Show changes
+• git_commit → Commit with message
+• git_push/pull → Sync with remote
+• git_branch → Manage branches
+• git_log → Show history
+• git_stash → Save/restore work
+
+SYSTEM TOOLS:
+• system_info → OS and hardware details
+• process_list → Running processes
+• memory_usage → RAM statistics
+• disk_usage → Storage info
+• network_info → Network configuration
+• environment_vars → ENV variables
+
+DOCKER TOOLS:
+• docker_ps → List containers
+• docker_images → List images  
+• docker_logs → Container logs
+• docker_exec → Run commands in containers
+• docker_build/run/stop → Container management
+
+SSH TOOLS:
+• ssh_connect → Remote connection
+• ssh_execute → Run remote commands
+• scp_upload/download → Transfer files
+
+DATABASE TOOLS:
+• db_query → Execute SQL
+• db_schema → Show structure
+• db_backup/restore → Data management
+
+CONVERSION TOOLS:
+• base64_encode/decode → Base64 conversion
+• hash_text → Generate hashes
+• format_json/xml → Format data
+• text_transform → Case/format changes
+
+WEB SEARCH:
+• web_search → Current information
+• search_programming → Code examples
+• search_security → Security info
+• search_documentation → Technical docs
+
+IMPORTANT: Always use the RIGHT tool for the task. Read files when asked ABOUT them, not just check existence!`;
     
     prompt += `\n\nBe helpful, precise, and use tools when available. Provide real results, not generic responses.`;
     
@@ -1525,9 +1592,27 @@ Available Tools: ${taskInfo.needsTools ? taskInfo.tools.join(', ') : 'none requi
           result = await this.toolRegistry.executeTool(toolCall.function.name, args);
         }
         
-        // Show clean result (handle null/undefined results)
+        // Show clean result (handle null/undefined results and objects)
         if (result !== null && result !== undefined) {
-          this.addMessage('tool', colors.success(`${result}`));
+          let displayMessage = '';
+          
+          // Handle object results from tools
+          if (typeof result === 'object') {
+            if (result.output) {
+              displayMessage = result.output;
+            } else if (result.error) {
+              this.addMessage('error', result.error);
+              return;
+            } else {
+              // Fallback for other objects
+              displayMessage = JSON.stringify(result, null, 2);
+            }
+          } else {
+            // String or primitive result
+            displayMessage = String(result);
+          }
+          
+          this.addMessage('tool', colors.success(displayMessage));
         } else {
           this.addMessage('tool', colors.warning('Tool executed but returned no output'));
         }

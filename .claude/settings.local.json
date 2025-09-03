@@ -23,7 +23,8 @@
       "Bash(./fix-build.sh)",
       "Bash(node:*)",
       "Bash(git rm:*)",
-      "Bash(timeout:*)"
+      "Bash(timeout:*)",
+      "Bash(rm:*)"
     ],
     "deny": [],
     "ask": []
