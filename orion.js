@@ -266,8 +266,8 @@ class OrionCLI {
     // Clear and reset
     output.push('\x1B[2J\x1B[H');
     
-    // Top border with gradient
-    output.push(gradient(['#667eea', '#764ba2'])('═'.repeat(this.terminalWidth)));
+    // Clean top border
+    output.push(colors.dim('─'.repeat(this.terminalWidth)));
     
     // Messages area
     const reservedLines = 10; // Status, input, help
@@ -324,16 +324,11 @@ class OrionCLI {
   renderStatusLine() {
     const parts = [];
     
-    // Model with icon and color
+    // Model with icon and color  
     parts.push(this.config.color(`${this.config.icon} ${this.config.model.toUpperCase()}`));
     
     // Auto-edit status
     parts.push(this.autoEdit ? colors.success('▶ Auto-edit ON') : colors.dim('⏸ Auto-edit OFF'));
-    
-    // Active file
-    if (this.activeFile) {
-      parts.push(colors.accent(`📄 ${path.basename(this.activeFile)}`));
-    }
     
     // Session time
     const sessionTime = Math.floor((Date.now() - this.sessionStartTime) / 1000);
@@ -341,13 +336,12 @@ class OrionCLI {
     const seconds = sessionTime % 60;
     parts.push(colors.dim(`⏱ ${minutes}:${seconds.toString().padStart(2, '0')}`));
     
-    // Message count
+    // Message count (reduced importance)
     parts.push(colors.dim(`💬 ${this.messages.length}`));
     
     const statusLine = parts.join(colors.dim(' │ '));
-    const border = gradient(['#667eea', '#764ba2'])('─'.repeat(this.terminalWidth));
     
-    return border + '\n' + statusLine + '\n';
+    return statusLine + '\n';
   }
 
   renderInputArea() {
@@ -467,7 +461,10 @@ class OrionCLI {
 
   toggleAutoEdit() {
     this.autoEdit = !this.autoEdit;
-    this.addMessage('system', `Auto-edit ${this.autoEdit ? 'enabled ▶' : 'disabled ⏸'}`);
+    // Only show message if not currently processing to avoid spam
+    if (!this.isProcessing) {
+      this.addMessage('system', colors.info(`${this.autoEdit ? '▶ Auto-edit ON' : '⏸ Auto-edit OFF'}`));
+    }
     this.render();
   }
 
@@ -693,20 +690,15 @@ class OrionCLI {
   async processWithAI(input) {
     this.isProcessing = true;
     
-    // Phase 1: Intelligent Analysis
-    this.addMessage('system', colors.info('🧠 Analyzing request...'));
-    this.render();
-    await this.sleep(200);
-    
     // Smart task classification and tool detection
     const taskInfo = this.analyzeTask(input);
     const optimalModel = this.selectModelForTask(input);
     let usingClient = this.client;
     let usingConfig = this.config;
     
-    // Phase 2: Smart Routing
+    // Only show routing if model changes
     if (optimalModel !== this.config.model) {
-      this.addMessage('system', `${colors.info('🎯 Smart routing:')} ${colors.dim(taskInfo.type)} → ${this.config.color(optimalModel)}`);
+      this.addMessage('system', `${colors.info('🎯')} ${colors.dim(taskInfo.type)} → ${this.config.color(optimalModel)}`);
       this.render();
       
       process.env.MODEL = optimalModel;
@@ -714,25 +706,20 @@ class OrionCLI {
       usingClient = this.createClient();
     }
     
-    // Phase 3: Tool Integration Check
-    if (taskInfo.needsTools) {
-      this.addMessage('system', colors.accent(`🔧 Tools required: ${taskInfo.tools.join(', ')}`));
-      this.render();
-      await this.sleep(100);
-    }
-    
-    // Phase 4: Context Preparation
-    const contextInfo = this.buildContext(input, taskInfo);
-    if (contextInfo.enhanced) {
-      this.addMessage('system', colors.accent(`📋 Context: ${contextInfo.description}`));
+    // Only show tools if needed and high priority
+    if (taskInfo.needsTools && taskInfo.priority === 'high') {
+      this.addMessage('system', colors.accent(`🔧 ${taskInfo.tools.join(', ')}`));
       this.render();
     }
     
-    // Phase 5: Generation
-    this.addMessage('system', colors.info('⚡ Generating intelligent response...'));
+    // Show thinking indicator only
+    this.addMessage('system', colors.info('💭 Thinking...'));
     this.render();
     
     try {
+      // Build context info
+      const contextInfo = this.buildContext(input, taskInfo);
+      
       // Enhanced system prompt with tool awareness
       const systemPrompt = this.buildSystemPrompt(taskInfo, contextInfo);
       const messages = [
@@ -950,7 +937,8 @@ Available Tools: ${taskInfo.needsTools ? taskInfo.tools.join(', ') : 'none requi
   
   async handleToolCalls(toolCalls) {
     for (const toolCall of toolCalls) {
-      this.addMessage('system', colors.tool(`🔧 Executing: ${toolCall.function.name}`));
+      // Show minimal tool execution indicator
+      this.addMessage('system', colors.tool(`🔧 ${toolCall.function.name}`));
       this.render();
       
       try {
@@ -966,11 +954,12 @@ Available Tools: ${taskInfo.needsTools ? taskInfo.tools.join(', ') : 'none requi
             break;
         }
         
-        this.addMessage('tool', colors.success(`✅ Result: ${result}`));
+        // Show clean result
+        this.addMessage('tool', colors.success(`${result}`));
         this.render();
         
       } catch (error) {
-        this.addMessage('error', `Tool execution failed: ${error.message}`);
+        this.addMessage('error', `${error.message}`);
         this.render();
       }
     }
