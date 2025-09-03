@@ -677,25 +677,50 @@ class OrionCLI {
   }
 
   showHelp() {
-    this.addMessage('system', colors.primary.bold('Available Commands:'));
+    this.addMessage('system', colors.primary('═'.repeat(60)));
+    this.addMessage('system', colors.primary.bold('🚀 OrionCLI - Your Smart AI Development Assistant'));
+    this.addMessage('system', colors.primary('═'.repeat(60)));
+    
     this.addMessage('system', '');
-    this.addMessage('system', colors.accent('/help') + '     - Show this help message');
-    this.addMessage('system', colors.accent('/clear') + '    - Clear chat history');
-    this.addMessage('system', colors.accent('/models') + '   - List available AI models');
-    this.addMessage('system', colors.accent('/model') + '    - Switch to a different model');
-    this.addMessage('system', colors.accent('/file') + '     - Set active file for context');
-    this.addMessage('system', colors.accent('/auto') + '     - Toggle auto-edit mode');
-    this.addMessage('system', colors.accent('/tools') + '    - Show available tools');
-    this.addMessage('system', colors.accent('/permissions') + ' - Manage tool permissions');
-    this.addMessage('system', colors.accent('/about') + '    - About OrionCLI');
-    this.addMessage('system', colors.accent('/exit') + '     - Exit the application');
+    this.addMessage('system', colors.accent.bold('📝 WHAT YOU CAN ASK:'));
+    this.addMessage('system', colors.info('• "Create a plan for [project type]" → Generate architecture'));
+    this.addMessage('system', colors.info('• "What is [filename] about?" → Read & explain files'));
+    this.addMessage('system', colors.info('• "Edit [file] to [change]" → Modify code'));
+    this.addMessage('system', colors.info('• "Search for [pattern]" → Find in codebase'));
+    this.addMessage('system', colors.info('• "Run [command]" → Execute shell commands'));
+    this.addMessage('system', colors.info('• "Commit my changes" → Git operations'));
+    this.addMessage('system', colors.info('• "Fix the bug in [file]" → Debug assistance'));
+    
     this.addMessage('system', '');
-    this.addMessage('system', colors.primary.bold('Keyboard Shortcuts:'));
+    this.addMessage('system', colors.accent.bold('💬 SLASH COMMANDS:'));
+    this.addMessage('system', colors.success('/help') + '        - This guide');
+    this.addMessage('system', colors.success('/clear') + '       - Clear chat');
+    this.addMessage('system', colors.success('/models') + '      - List AI models');
+    this.addMessage('system', colors.success('/model <name>') + ' - Switch model');
+    this.addMessage('system', colors.success('/file <path>') + '  - Set active file');
+    this.addMessage('system', colors.success('/auto') + '        - Auto-edit toggle');
+    this.addMessage('system', colors.success('/tools') + '       - Show 54+ tools');
+    this.addMessage('system', colors.success('/permissions') + '  - Manage permissions');
+    this.addMessage('system', colors.success('/about') + '       - About OrionCLI');
+    this.addMessage('system', colors.success('/exit') + '        - Quit');
+    
     this.addMessage('system', '');
-    this.addMessage('system', colors.dim('Tab') + '        - Auto-complete commands');
-    this.addMessage('system', colors.dim('↑/↓') + '        - Navigate command history');
-    this.addMessage('system', colors.dim('Shift+Tab') + ' - Toggle auto-edit mode');
-    this.addMessage('system', colors.dim('Ctrl+C') + '    - Exit application');
+    this.addMessage('system', colors.accent.bold('⌨️  SHORTCUTS:'));
+    this.addMessage('system', colors.warning('Tab') + '          - Complete');
+    this.addMessage('system', colors.warning('↑/↓') + '          - History');
+    this.addMessage('system', colors.warning('Shift+Tab') + '    - Toggle auto-edit');
+    this.addMessage('system', colors.warning('Ctrl+C') + '       - Exit');
+    
+    this.addMessage('system', '');
+    this.addMessage('system', colors.accent.bold('💡 SMART FEATURES:'));
+    this.addMessage('system', '• Auto tool selection');
+    this.addMessage('system', '• Task planning with todos');
+    this.addMessage('system', '• Error recovery');
+    this.addMessage('system', '• Permission management');
+    this.addMessage('system', '• Project understanding');
+    
+    this.addMessage('system', '');
+    this.addMessage('system', colors.primary('═'.repeat(60)));
   }
 
   showModels() {
