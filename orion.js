@@ -374,21 +374,24 @@ class OrionCLI {
   positionCursor() {
     // CRITICAL: Cursor positioning logic - DO NOT MODIFY without testing!
     // 
-    // Terminal layout from bottom up:
-    // Line N     : Help text (shortcuts)
-    // Line N-1   : Input box bottom border  ╰──╯
-    // Line N-2   : Input box content        │ text here │  <-- CURSOR GOES HERE
-    // Line N-3   : Input box top border     ╭──╮  
-    // Line N-4   : Status line
-    // Line N-5+  : Messages
+    // Let's trace the EXACT output from _performRender():
+    // 1. Clear screen command (not counted)  
+    // 2. Top border: 1 line
+    // 3. Messages: messageAreaHeight lines
+    // 4. Status line: 1 line (renderStatusLine returns "status + \n")
+    // 5. Input area: 4 lines total
+    //    - Input box top border: ╭──╮
+    //    - Input box content: │ text │  <-- CURSOR TARGET
+    //    - Input box bottom border: ╰──╯  
+    //    - Help text: shortcuts
     //
-    // The boxen creates a 3-line input box, we want cursor on the content line (N-2)
-    const inputContentLine = this.terminalHeight - 2; // Content line of the input box
-    const cursorCol = this.cursorPosition + 3; // +3 accounts for: │ + space + left_padding
+    // So cursor should be at: 1 (border) + messageAreaHeight + 1 (status) + 2 (box top + content)
+    const reservedLines = 10;
+    const messageAreaHeight = Math.max(5, this.terminalHeight - reservedLines);
+    const inputBoxContentLine = 1 + messageAreaHeight + 1 + 2; // border + messages + status + (box_top + content)
+    const cursorCol = this.cursorPosition + 3; // Account for boxen border and padding
     
-    // Move cursor to exact position inside input box content area
-    process.stdout.write(`\x1B[${inputContentLine};${cursorCol}H`);
-    // Make cursor visible
+    process.stdout.write(`\x1B[${inputBoxContentLine};${cursorCol}H`);
     process.stdout.write('\x1B[?25h');
   }
 
