@@ -79,6 +79,13 @@ class OrionCLI {
     this.client = this.createClient();
     this.toolRegistry = new OrionToolRegistry();
     
+    // Rendering control
+    this.renderMode = 'smart'; // 'smart' or 'full'
+    this.lastRenderTime = 0;
+    this.renderThrottle = 50; // Minimum ms between renders
+    this.isScrolling = false;
+    this.scrollTimeout = null;
+    
     // Intelligence systems
     this.taskUnderstanding = new TaskUnderstanding();
     this.orchestration = new EnhancedOrchestration(); // Single orchestration system
@@ -180,6 +187,9 @@ class OrionCLI {
   }
 
   async start() {
+    // Enter alternate screen buffer (prevents scroll issues)
+    process.stdout.write('\x1B[?1049h');
+    
     // Beautiful splash screen
     console.clear();
     this.showSplashScreen();
@@ -188,7 +198,7 @@ class OrionCLI {
     
     this.setupTerminal();
     this.setupInput();
-    this.render();
+    this.render(true); // Force full render
     
     // Welcome message
     this.addMessage('system', `Welcome to OrionCLI! Type ${colors.primary('/help')} for commands or start chatting.`);
@@ -223,6 +233,7 @@ class OrionCLI {
     // Cleanup on exit
     process.on('exit', () => {
       process.stdout.write('\x1B[?25h'); // Show cursor
+      process.stdout.write('\x1B[?1049l'); // Exit alternate screen buffer
       if (process.stdin.isTTY) {
         process.stdin.setRawMode(false);
       }
@@ -291,6 +302,23 @@ class OrionCLI {
   }
 
   scheduleRender() {
+    // Don't render if scrolling
+    if (this.isScrolling) {
+      return;
+    }
+    
+    // Throttle rendering
+    const now = Date.now();
+    if (now - this.lastRenderTime < this.renderThrottle) {
+      if (!this.renderTimeout) {
+        this.renderTimeout = setTimeout(() => {
+          this.renderTimeout = null;
+          this._performRender();
+        }, this.renderThrottle);
+      }
+      return;
+    }
+    
     if (this.renderTimeout) {
       clearTimeout(this.renderTimeout);
     }
@@ -299,7 +327,10 @@ class OrionCLI {
     }, 16); // 60fps like original grok-cli
   }
 
-  render() {
+  render(force = false) {
+    if (force) {
+      this.renderMode = 'full';
+    }
     this.scheduleRender();
   }
 
@@ -1626,6 +1657,10 @@ IMPORTANT: Always use the RIGHT tool for the task. Read files when asked ABOUT t
   }
 
   exit() {
+    // Exit alternate screen buffer first
+    process.stdout.write('\x1B[?1049l');
+    process.stdout.write('\x1B[?25h'); // Show cursor
+    
     console.clear();
     console.log(gradient(['#667eea', '#764ba2', '#f093fb'])(ORION_ASCII));
     console.log(colors.primary.bold('\n        Thank you for using OrionCLI! 👋\n'));
