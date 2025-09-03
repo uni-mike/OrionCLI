@@ -362,16 +362,40 @@ class OrionCLI {
   }
 
   renderInputArea() {
-    // Ensure input content is padded to full width
-    const rawContent = this.inputBuffer || colors.dim('Type your message...');
-    const boxWidth = this.terminalWidth - 4; // Account for border and padding
-    const paddedContent = rawContent.padEnd(boxWidth, ' '); // Force full width content
+    // Grok-cli approach: Visual cursor within content
+    const inputValue = this.inputBuffer || '';
     
-    const inputBox = boxen(paddedContent, {
+    // Split input into lines for multiline support  
+    const lines = inputValue.split('\n');
+    const displayLines = lines.map((line, i) => {
+      const prefix = i === 0 ? '❯ ' : '│ ';
+      return prefix + line;
+    });
+    
+    // Add visual cursor (grok-cli style)
+    if (!this.isProcessing) {
+      const textBeforeCursor = inputValue.substring(0, this.cursorPosition);
+      const cursorLineIndex = textBeforeCursor.split('\n').length - 1;
+      const cursorColumn = textBeforeCursor.split('\n')[cursorLineIndex].length;
+      
+      if (displayLines[cursorLineIndex]) {
+        const line = displayLines[cursorLineIndex];
+        const insertPos = cursorColumn + 2; // Account for prefix
+        displayLines[cursorLineIndex] = 
+          line.substring(0, insertPos) + 
+          chalk.inverse(' ') + 
+          line.substring(insertPos);
+      }
+    }
+    
+    // Create content
+    const content = displayLines.join('\n') || colors.dim('Ask me anything...');
+    
+    const inputBox = boxen(content, {
       padding: { left: 1, right: 1, top: 0, bottom: 0 },
       borderStyle: 'round',
       borderColor: this.isProcessing ? 'yellow' : 'magenta',
-      width: this.terminalWidth - 2, // Leave 1 char margin on each side  
+      width: this.terminalWidth - 2,
       align: 'left'
     });
     
@@ -395,34 +419,8 @@ class OrionCLI {
   }
 
   positionCursor() {
-    // Calculate cursor position for multiline input
-    const textBeforeCursor = this.inputBuffer.substring(0, this.cursorPosition);
-    const lines = textBeforeCursor.split('\n');
-    
-    // Current line index (0-based) within the input
-    const currentLineIndex = lines.length - 1;
-    // Column position within current line  
-    const columnInLine = lines[currentLineIndex].length;
-    
-    // Calculate terminal layout positions
-    const reservedLines = 10;
-    const messageAreaHeight = Math.max(5, this.terminalHeight - reservedLines);
-    
-    // Layout: messages + empty_lines + status_line + input_area
-    // Input area starts immediately after status line
-    const inputAreaStartLine = messageAreaHeight + 2; // +1 for status line, +1 for input box top border
-    
-    // Cursor position: input area start + current line within input + border offset
-    const cursorLine = inputAreaStartLine + currentLineIndex;
-    // Column: left margin + border + padding + position within line
-    const cursorCol = 3 + columnInLine; // 1 for margin + 1 for border + 1 for padding + position
-    
-    // Make sure we don't go outside terminal bounds
-    const maxLine = this.terminalHeight - 1;
-    const finalLine = Math.min(cursorLine, maxLine);
-    
-    process.stdout.write(`\x1B[${finalLine};${cursorCol}H`);
-    process.stdout.write('\x1B[?25h');
+    // Hide terminal cursor since we use visual cursor in content
+    process.stdout.write('\x1B[?25l');
   }
 
   addMessage(type, content) {
