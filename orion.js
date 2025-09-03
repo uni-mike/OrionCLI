@@ -76,6 +76,7 @@ class OrionCLI {
     this.lastRender = '';
     this.renderTimeout = null;
     this.sessionStartTime = Date.now();
+    this.lastToggleTime = 0;
   }
 
   loadConfig() {
@@ -218,13 +219,22 @@ class OrionCLI {
         return;
       }
       
+      // Check for Shift+Enter (add newline instead of submit)
+      // Most terminals send this sequence for Shift+Enter
+      if (key === '\x1B[13;2~' || key === '\x1B\r' || key === '\x1B\n') {
+        this.insertChar('\n');
+        this.scheduleRender();
+        return;
+      }
+      
       const code = key.charCodeAt(0);
       
       switch (code) {
         case 3: // Ctrl+C
           this.exit();
           break;
-        case 13: // Enter
+        case 13: // Enter (regular)
+          // Only submit if not multiline or if Ctrl+Enter
           await this.handleEnter();
           break;
         case 127: // Backspace
@@ -345,13 +355,17 @@ class OrionCLI {
   }
 
   renderInputArea() {
-    const inputContent = this.inputBuffer || colors.dim('Type your message...');
-    const inputBox = boxen(inputContent, {
+    // Ensure input content is padded to full width
+    const rawContent = this.inputBuffer || colors.dim('Type your message...');
+    const boxWidth = this.terminalWidth - 4; // Account for border and padding
+    const paddedContent = rawContent.padEnd(boxWidth, ' '); // Force full width content
+    
+    const inputBox = boxen(paddedContent, {
       padding: { left: 1, right: 1, top: 0, bottom: 0 },
       borderStyle: 'round',
       borderColor: this.isProcessing ? 'yellow' : 'magenta',
-      width: this.terminalWidth, // FULL WIDTH - remove the -2
-      fullWidth: true
+      width: this.terminalWidth - 2, // Leave 1 char margin on each side  
+      align: 'left'
     });
     
     let output = inputBox + '\n';
@@ -480,6 +494,13 @@ class OrionCLI {
   }
 
   toggleAutoEdit() {
+    // Prevent spam by debouncing toggle
+    const now = Date.now();
+    if (this.lastToggleTime && now - this.lastToggleTime < 500) {
+      return; // Ignore if toggled within last 500ms
+    }
+    this.lastToggleTime = now;
+    
     this.autoEdit = !this.autoEdit;
     // Only show message if not currently processing to avoid spam
     if (!this.isProcessing) {
