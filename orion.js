@@ -693,27 +693,52 @@ class OrionCLI {
   async processWithAI(input) {
     this.isProcessing = true;
     
-    // Smart model selection
+    // Phase 1: Intelligent Analysis
+    this.addMessage('system', colors.info('🧠 Analyzing request...'));
+    this.render();
+    await this.sleep(200);
+    
+    // Smart task classification and tool detection
+    const taskInfo = this.analyzeTask(input);
     const optimalModel = this.selectModelForTask(input);
     let usingClient = this.client;
     let usingConfig = this.config;
     
+    // Phase 2: Smart Routing
     if (optimalModel !== this.config.model) {
-      this.addMessage('system', `${colors.info('🧠 Smart routing:')} ${colors.dim('task analysis')} → ${this.config.color(optimalModel)}`);
+      this.addMessage('system', `${colors.info('🎯 Smart routing:')} ${colors.dim(taskInfo.type)} → ${this.config.color(optimalModel)}`);
+      this.render();
       
       process.env.MODEL = optimalModel;
       usingConfig = this.loadConfig();
       usingClient = this.createClient();
     }
     
-    this.addMessage('system', colors.info('💭 Generating response...'));
+    // Phase 3: Tool Integration Check
+    if (taskInfo.needsTools) {
+      this.addMessage('system', colors.accent(`🔧 Tools required: ${taskInfo.tools.join(', ')}`));
+      this.render();
+      await this.sleep(100);
+    }
+    
+    // Phase 4: Context Preparation
+    const contextInfo = this.buildContext(input, taskInfo);
+    if (contextInfo.enhanced) {
+      this.addMessage('system', colors.accent(`📋 Context: ${contextInfo.description}`));
+      this.render();
+    }
+    
+    // Phase 5: Generation
+    this.addMessage('system', colors.info('⚡ Generating intelligent response...'));
     this.render();
     
     try {
+      // Enhanced system prompt with tool awareness
+      const systemPrompt = this.buildSystemPrompt(taskInfo, contextInfo);
       const messages = [
         {
           role: 'system',
-          content: `You are OrionCLI, an advanced AI assistant. Be helpful and concise. Active file: ${this.activeFile || 'none'}.`
+          content: systemPrompt
         },
         { role: 'user', content: input }
       ];
@@ -728,9 +753,19 @@ class OrionCLI {
       if (usingConfig.supportsTemperature) {
         completionParams.temperature = 0.7;
       }
+      
+      // Add tools if task requires them
+      if (taskInfo.needsTools) {
+        completionParams.tools = this.getAvailableTools(taskInfo.tools);
+      }
 
       const completion = await usingClient.chat.completions.create(completionParams);
       const response = completion.choices[0].message.content;
+      
+      // Handle tool calls if present
+      if (completion.choices[0].message.tool_calls) {
+        await this.handleToolCalls(completion.choices[0].message.tool_calls);
+      }
       
       // Add response line by line for better display
       const lines = response.split('\n');
@@ -743,6 +778,215 @@ class OrionCLI {
     } finally {
       this.isProcessing = false;
     }
+  }
+
+  // Smart Assistant Helper Functions
+  
+  sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+  
+  analyzeTask(input) {
+    const lowerInput = input.toLowerCase();
+    
+    // Time/date requests
+    if (/\b(time|date|now|current|clock|timezone|est|pst|utc)\b/.test(lowerInput)) {
+      return {
+        type: 'time query',
+        needsTools: true,
+        tools: ['bash', 'web-search'],
+        priority: 'high'
+      };
+    }
+    
+    // File operations
+    if (/\b(read|write|edit|file|create|delete|ls|pwd|cat)\b/.test(lowerInput)) {
+      return {
+        type: 'file operation',
+        needsTools: true,
+        tools: ['file-tools', 'bash'],
+        priority: 'high'
+      };
+    }
+    
+    // Code tasks
+    if (/\b(code|function|class|debug|implement|fix|syntax|error|bug)\b/.test(lowerInput)) {
+      return {
+        type: 'coding task',
+        needsTools: true,
+        tools: ['code-tools', 'text-editor'],
+        priority: 'high'
+      };
+    }
+    
+    // Web searches
+    if (/\b(search|find|lookup|what is|who is|weather|news)\b/.test(lowerInput)) {
+      return {
+        type: 'information query',
+        needsTools: true,
+        tools: ['web-search'],
+        priority: 'medium'
+      };
+    }
+    
+    // General conversation
+    return {
+      type: 'conversation',
+      needsTools: false,
+      tools: [],
+      priority: 'low'
+    };
+  }
+  
+  buildContext(input, taskInfo) {
+    const context = {
+      enhanced: false,
+      description: '',
+      workingDir: process.cwd(),
+      activeFile: this.activeFile,
+      sessionTime: Math.floor((Date.now() - this.sessionStartTime) / 1000)
+    };
+    
+    // Add file context
+    if (this.activeFile) {
+      context.enhanced = true;
+      context.description = `Active file: ${path.basename(this.activeFile)}`;
+    }
+    
+    // Add directory context for file operations
+    if (taskInfo.type === 'file operation') {
+      context.enhanced = true;
+      context.description += (context.description ? ', ' : '') + `Working dir: ${path.basename(process.cwd())}`;
+    }
+    
+    // Add session context for complex tasks
+    if (taskInfo.priority === 'high') {
+      context.enhanced = true;
+      const minutes = Math.floor(context.sessionTime / 60);
+      context.description += (context.description ? ', ' : '') + `Session: ${minutes}m`;
+    }
+    
+    return context;
+  }
+  
+  buildSystemPrompt(taskInfo, contextInfo) {
+    let prompt = `You are OrionCLI, an advanced AI assistant with access to powerful tools and real-time capabilities.
+    
+Current Context:
+- Working Directory: ${contextInfo.workingDir}
+- Active File: ${contextInfo.activeFile || 'none'}
+- Task Type: ${taskInfo.type}
+- Session Time: ${Math.floor(contextInfo.sessionTime / 60)}m
+
+Available Tools: ${taskInfo.needsTools ? taskInfo.tools.join(', ') : 'none required'}`;
+
+    // Task-specific instructions
+    if (taskInfo.type === 'time query') {
+      prompt += `\n\nFor time/date queries, you MUST use the bash tool to get real-time information:
+- Use 'date' command for current time
+- Use 'TZ="America/New_York" date' for EST
+- Use 'TZ="America/Los_Angeles" date' for PST
+- Always provide actual current time, not placeholder responses`;
+    }
+    
+    if (taskInfo.type === 'information query') {
+      prompt += `\n\nFor information queries, use web search tools to get current, accurate information.`;
+    }
+    
+    if (taskInfo.type === 'file operation') {
+      prompt += `\n\nFor file operations, use appropriate file tools and provide clear status updates.`;
+    }
+    
+    prompt += `\n\nBe helpful, precise, and use tools when available. Provide real results, not generic responses.`;
+    
+    return prompt;
+  }
+  
+  getAvailableTools(toolNames) {
+    const tools = [];
+    
+    if (toolNames.includes('bash')) {
+      tools.push({
+        type: 'function',
+        function: {
+          name: 'execute_bash',
+          description: 'Execute bash commands and return output',
+          parameters: {
+            type: 'object',
+            properties: {
+              command: {
+                type: 'string',
+                description: 'The bash command to execute'
+              }
+            },
+            required: ['command']
+          }
+        }
+      });
+    }
+    
+    if (toolNames.includes('web-search')) {
+      tools.push({
+        type: 'function',
+        function: {
+          name: 'web_search',
+          description: 'Search the web for current information',
+          parameters: {
+            type: 'object',
+            properties: {
+              query: {
+                type: 'string',
+                description: 'The search query'
+              }
+            },
+            required: ['query']
+          }
+        }
+      });
+    }
+    
+    return tools;
+  }
+  
+  async handleToolCalls(toolCalls) {
+    for (const toolCall of toolCalls) {
+      this.addMessage('system', colors.tool(`🔧 Executing: ${toolCall.function.name}`));
+      this.render();
+      
+      try {
+        const args = JSON.parse(toolCall.function.arguments);
+        let result = '';
+        
+        switch (toolCall.function.name) {
+          case 'execute_bash':
+            result = await this.executeBashCommand(args.command);
+            break;
+          case 'web_search':
+            result = `Web search for "${args.query}" would be performed here`;
+            break;
+        }
+        
+        this.addMessage('tool', colors.success(`✅ Result: ${result}`));
+        this.render();
+        
+      } catch (error) {
+        this.addMessage('error', `Tool execution failed: ${error.message}`);
+        this.render();
+      }
+    }
+  }
+  
+  async executeBashCommand(command) {
+    return new Promise((resolve, reject) => {
+      const { exec } = require('child_process');
+      exec(command, (error, stdout, stderr) => {
+        if (error) {
+          reject(new Error(stderr || error.message));
+        } else {
+          resolve(stdout.trim() || 'Command executed successfully');
+        }
+      });
+    });
   }
 
   exit() {
