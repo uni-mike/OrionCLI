@@ -372,24 +372,25 @@ class OrionCLI {
   }
 
   positionCursor() {
-    // CRITICAL: Cursor positioning logic - DO NOT MODIFY without testing!
+    // CRITICAL: Cursor positioning logic - TESTED AND VERIFIED!
     // 
-    // Let's trace the EXACT output from _performRender():
-    // 1. Clear screen command (not counted)  
-    // 2. Top border: 1 line
-    // 3. Messages: messageAreaHeight lines
-    // 4. Status line: 1 line (renderStatusLine returns "status + \n")
-    // 5. Input area: 4 lines total
-    //    - Input box top border: ╭──╮
-    //    - Input box content: │ text │  <-- CURSOR TARGET
-    //    - Input box bottom border: ╰──╯  
-    //    - Help text: shortcuts
+    // ACTUAL TEST RESULTS from cursor-test.js:
+    // Line 24 = Input box content │ Type your message... │
+    // 
+    // Layout confirmed:
+    // - Top border: 1 line
+    // - Messages: messageAreaHeight lines  
+    // - Status: 1 line
+    // - Input box top: 1 line    ╭──╮
+    // - Input box content: 1 line │ text │  <-- CURSOR HERE (line 24 in test)
+    // - Input box bottom: 1 line  ╰──╯
+    // - Help text: 1 line
     //
-    // So cursor should be at: 1 (border) + messageAreaHeight + 1 (status) + 2 (box top + content)
+    // Calculation: 1 + messageAreaHeight + 1 + 1 + 1 = messageAreaHeight + 4
     const reservedLines = 10;
     const messageAreaHeight = Math.max(5, this.terminalHeight - reservedLines);
-    const inputBoxContentLine = 1 + messageAreaHeight + 1 + 2; // border + messages + status + (box_top + content)
-    const cursorCol = this.cursorPosition + 3; // Account for boxen border and padding
+    const inputBoxContentLine = messageAreaHeight + 4; // Simplified: messages + border + status + input_top + input_content
+    const cursorCol = this.cursorPosition + 3; // Border │ + space + left_padding
     
     process.stdout.write(`\x1B[${inputBoxContentLine};${cursorCol}H`);
     process.stdout.write('\x1B[?25h');
