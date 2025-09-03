@@ -8,15 +8,14 @@ class JsonToolParser {
    * Detect if response contains tool JSON
    */
   static containsToolJson(text) {
-    // Check for common tool JSON patterns
-    const patterns = [
-      /\{"name":\s*"[^"]+"/,
-      /\{"tool":\s*"[^"]+"/,
-      /\{"function":\s*"[^"]+"/,
-      /\{"cmd":\s*\[/
-    ];
-    
-    return patterns.some(pattern => pattern.test(text));
+    // Check for tool JSON - handle multi-line and different formats
+    // Simply check if it has both { and "tool" somewhere
+    return text.includes('{') && (
+      text.includes('"tool"') || 
+      text.includes('"name"') ||
+      text.includes('"function"') ||
+      text.includes('"cmd"')
+    );
   }
   
   /**
@@ -33,16 +32,71 @@ class JsonToolParser {
           const parsed = JSON.parse(trimmed);
           const toolCall = this.convertToToolCall(parsed);
           if (toolCall) {
-            return [toolCall];  // Return immediately if successful
+            toolCalls.push(toolCall);
+            return toolCalls;  // Return immediately if successful
           }
         } catch (e) {
           // Not valid JSON, continue to regex extraction
         }
       }
       
-      // FALLBACK: Use regex to extract JSON from mixed text
-      // Updated regex to handle nested JSON objects properly
-      const jsonMatches = text.match(/\{(?:[^{}]|(\{[^{}]*\}))*\}/g);
+      // FALLBACK: Try to find JSON in the text (handles multi-line, escaped chars, etc)
+      // Look for anything that starts with { and has "tool" in it
+      const jsonStart = text.indexOf('{');
+      if (jsonStart !== -1 && text.includes('"tool"')) {
+        // Try to find the matching closing brace
+        let depth = 0;
+        let inString = false;
+        let escape = false;
+        let jsonEnd = -1;
+        
+        for (let i = jsonStart; i < text.length; i++) {
+          const char = text[i];
+          
+          if (escape) {
+            escape = false;
+            continue;
+          }
+          
+          if (char === '\\') {
+            escape = true;
+            continue;
+          }
+          
+          if (char === '"' && !escape) {
+            inString = !inString;
+            continue;
+          }
+          
+          if (!inString) {
+            if (char === '{') depth++;
+            else if (char === '}') {
+              depth--;
+              if (depth === 0) {
+                jsonEnd = i;
+                break;
+              }
+            }
+          }
+        }
+        
+        if (jsonEnd !== -1) {
+          const jsonStr = text.substring(jsonStart, jsonEnd + 1);
+          try {
+            const parsed = JSON.parse(jsonStr);
+            const toolCall = this.convertToToolCall(parsed);
+            if (toolCall) {
+              toolCalls.push(toolCall);
+              return toolCalls;
+            }
+          } catch (e) {
+            // Failed to parse, continue to regex
+          }
+        }
+      }
+      
+      // LAST RESORT: Simple regex for single-line JSON
+      const jsonMatches = text.match(/\{[^{}]*"tool"[^{}]*\}/g);
       
       if (jsonMatches) {
         for (const jsonStr of jsonMatches) {
