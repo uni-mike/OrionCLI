@@ -6,6 +6,7 @@ package-lock.json
 *.js
 *.d.ts
 !orion-cli.js
+!orion.js
 
 # IDE
 .vscode/
