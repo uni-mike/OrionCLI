@@ -818,14 +818,19 @@ class OrionCLI {
       return 'gpt-5';
     }
     
-    // Complex reasoning -> o3
-    if (/\b(analyze|think|reason|logic|complex|strategy|plan|architecture|design|solve)\b/.test(lowerInput)) {
+    // Complex reasoning, planning, orchestration -> o3 (ENHANCED)
+    if (/\b(analyze|think|reason|logic|complex|strategy|plan|architecture|design|solve|orchestrat|build|create|implement|develop|organize|structure)\b/.test(lowerInput)) {
       return 'o3';
     }
     
-    // Quick questions -> o4-mini
-    if (input.length < 50 || /\b(what|how|when|where|quick|simple|short)\b/.test(lowerInput)) {
-      return 'o4-mini';
+    // File operations that need understanding -> o3 for better reasoning
+    if (/\b(what is|explain|understand|describe|summarize|review)\b.*\b(file|code|content|about)\b/i.test(lowerInput)) {
+      return 'o3';
+    }
+    
+    // Multi-step tasks -> o3 for orchestration
+    if (/\b(step|then|after|next|first|second|finally|todo|tasks?)\b/.test(lowerInput)) {
+      return 'o3';
     }
     
     // Visual content -> gpt-4o
@@ -833,7 +838,13 @@ class OrionCLI {
       return 'gpt-4o';
     }
     
-    return this.config.model;
+    // Quick/simple questions -> o4-mini (only for truly simple stuff)
+    if (input.length < 30 && /^(ls|pwd|date|time|help)$/i.test(input.trim())) {
+      return 'o4-mini';
+    }
+    
+    // Default to o3 for better reasoning (not o4-mini)
+    return this.config.model === 'o4-mini' ? 'o3' : this.config.model;
   }
 
   isDirectCommand(input) {
