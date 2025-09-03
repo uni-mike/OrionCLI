@@ -966,6 +966,14 @@ class OrionCLI {
       if (taskInfo.needsTools) {
         completionParams.tools = this.toolRegistry.getToolDefinitions(taskInfo.tools);
         completionParams.tool_choice = 'auto'; // Force tool usage when appropriate
+        
+        // Debug: Show what tools are being provided
+        if (process.env.DEBUG_TOOLS) {
+          console.log(colors.dim(`[DEBUG] Providing ${completionParams.tools.length} tools to AI`));
+          completionParams.tools.forEach(t => {
+            console.log(colors.dim(`  - ${t.function.name}`));
+          });
+        }
       }
 
       const completion = await usingClient.chat.completions.create(completionParams);
@@ -973,7 +981,12 @@ class OrionCLI {
       
       // Handle tool calls if present (proper OpenAI format)
       if (completion.choices[0].message.tool_calls) {
+        if (process.env.DEBUG_TOOLS) {
+          console.log(colors.dim(`[DEBUG] AI returned ${completion.choices[0].message.tool_calls.length} tool calls`));
+        }
         await this.handleToolCalls(completion.choices[0].message.tool_calls);
+      } else if (process.env.DEBUG_TOOLS) {
+        console.log(colors.dim(`[DEBUG] No tool calls in response`));
       }
       
       // Check for JSON tool calls in response (Azure OpenAI fallback)
