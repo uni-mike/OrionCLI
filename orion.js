@@ -856,7 +856,7 @@ class OrionCLI {
     }
     
     // File operations
-    if (/\b(read|write|edit|file|create|delete|ls|pwd|cat)\b/.test(lowerInput)) {
+    if (/\b(read|write|edit|file|create|delete|ls|pwd|cat|save|md|\.md|markdown|document|plan)\b/.test(lowerInput)) {
       return {
         type: 'file operation',
         needsTools: true,
@@ -1001,6 +1001,48 @@ Available Tools: ${taskInfo.needsTools ? taskInfo.tools.join(', ') : 'none requi
       });
     }
     
+    if (toolNames.includes('file-tools')) {
+      tools.push({
+        type: 'function',
+        function: {
+          name: 'write_file',
+          description: 'Create or write content to a file',
+          parameters: {
+            type: 'object',
+            properties: {
+              filename: {
+                type: 'string',
+                description: 'The name of the file to write'
+              },
+              content: {
+                type: 'string',
+                description: 'The content to write to the file'
+              }
+            },
+            required: ['filename', 'content']
+          }
+        }
+      });
+      
+      tools.push({
+        type: 'function',
+        function: {
+          name: 'read_file',
+          description: 'Read the contents of a file',
+          parameters: {
+            type: 'object',
+            properties: {
+              filename: {
+                type: 'string',
+                description: 'The name of the file to read'
+              }
+            },
+            required: ['filename']
+          }
+        }
+      });
+    }
+    
     return tools;
   }
   
@@ -1020,6 +1062,12 @@ Available Tools: ${taskInfo.needsTools ? taskInfo.tools.join(', ') : 'none requi
             break;
           case 'web_search':
             result = `Web search for "${args.query}" would be performed here`;
+            break;
+          case 'write_file':
+            result = await this.writeFile(args.filename, args.content);
+            break;
+          case 'read_file':
+            result = await this.readFile(args.filename);
             break;
         }
         
@@ -1045,6 +1093,24 @@ Available Tools: ${taskInfo.needsTools ? taskInfo.tools.join(', ') : 'none requi
         }
       });
     });
+  }
+
+  async writeFile(filename, content) {
+    try {
+      await fs.writeFile(filename, content, 'utf8');
+      return `✅ File '${filename}' created successfully (${content.length} characters)`;
+    } catch (error) {
+      throw new Error(`Failed to write file '${filename}': ${error.message}`);
+    }
+  }
+
+  async readFile(filename) {
+    try {
+      const content = await fs.readFile(filename, 'utf8');
+      return `📄 File '${filename}' (${content.length} characters):\n\n${content}`;
+    } catch (error) {
+      throw new Error(`Failed to read file '${filename}': ${error.message}`);
+    }
   }
 
   exit() {
