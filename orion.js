@@ -13,6 +13,7 @@ const figlet = require('figlet');
 const OpenAI = require('openai').default;
 const fs = require('fs').promises;
 const path = require('path');
+// Tool system will be integrated with existing src/tools structure
 const { exec } = require('child_process');
 const { promisify } = require('util');
 const execAsync = promisify(exec);
@@ -886,11 +887,21 @@ class OrionCLI {
     }
     
     // System operations
-    if (/\b(system|process|disk|memory|cpu|performance|monitor)\b/.test(lowerInput)) {
+    if (/\b(system|process|disk|memory|cpu|performance|monitor|network|ssh|server|remote)\b/.test(lowerInput)) {
       return {
         type: 'system query',
         needsTools: true,
-        tools: ['system-tools', 'bash'],
+        tools: ['system-tools', 'ssh-tools', 'bash'],
+        priority: 'medium'
+      };
+    }
+    
+    // Conversion and encoding
+    if (/\b(convert|encode|decode|base64|hash|md5|sha|transform|format)\b/.test(lowerInput)) {
+      return {
+        type: 'conversion task',
+        needsTools: true,
+        tools: ['conversion-tools', 'file-tools'],
         priority: 'medium'
       };
     }
@@ -1177,6 +1188,86 @@ Available Tools: ${taskInfo.needsTools ? taskInfo.tools.join(', ') : 'none requi
           }
         }
       });
+      
+      tools.push({
+        type: 'function',
+        function: {
+          name: 'git_log',
+          description: 'Show git commit history',
+          parameters: {
+            type: 'object',
+            properties: {
+              count: { type: 'number', description: 'Number of commits to show' },
+              oneline: { type: 'boolean', description: 'Show compact one-line format' }
+            },
+            required: []
+          }
+        }
+      });
+      
+      tools.push({
+        type: 'function',
+        function: {
+          name: 'git_branch',
+          description: 'Git branch operations',
+          parameters: {
+            type: 'object',
+            properties: {
+              action: { type: 'string', description: 'list, create, delete, checkout' },
+              branch_name: { type: 'string', description: 'Branch name for create/delete/checkout' }
+            },
+            required: ['action']
+          }
+        }
+      });
+      
+      tools.push({
+        type: 'function',
+        function: {
+          name: 'git_push',
+          description: 'Push commits to remote repository',
+          parameters: {
+            type: 'object',
+            properties: {
+              remote: { type: 'string', description: 'Remote name (default: origin)' },
+              branch: { type: 'string', description: 'Branch name (default: current)' }
+            },
+            required: []
+          }
+        }
+      });
+      
+      tools.push({
+        type: 'function',
+        function: {
+          name: 'git_pull',
+          description: 'Pull changes from remote repository',
+          parameters: {
+            type: 'object',
+            properties: {
+              remote: { type: 'string', description: 'Remote name (default: origin)' },
+              branch: { type: 'string', description: 'Branch name (default: current)' }
+            },
+            required: []
+          }
+        }
+      });
+      
+      tools.push({
+        type: 'function',
+        function: {
+          name: 'git_stash',
+          description: 'Git stash operations',
+          parameters: {
+            type: 'object',
+            properties: {
+              action: { type: 'string', description: 'save, pop, list, show' },
+              message: { type: 'string', description: 'Stash message for save action' }
+            },
+            required: ['action']
+          }
+        }
+      });
     }
     
     if (toolNames.includes('system-tools')) {
@@ -1215,6 +1306,170 @@ Available Tools: ${taskInfo.needsTools ? taskInfo.tools.join(', ') : 'none requi
               path: { type: 'string', description: 'Path to check (default: current)' }
             },
             required: []
+          }
+        }
+      });
+      
+      tools.push({
+        type: 'function',
+        function: {
+          name: 'network_info',
+          description: 'Get network configuration and status',
+          parameters: { type: 'object', properties: {}, required: [] }
+        }
+      });
+      
+      tools.push({
+        type: 'function',
+        function: {
+          name: 'memory_info',
+          description: 'Get memory usage information',
+          parameters: { type: 'object', properties: {}, required: [] }
+        }
+      });
+      
+      tools.push({
+        type: 'function',
+        function: {
+          name: 'cpu_info',
+          description: 'Get CPU information and usage',
+          parameters: { type: 'object', properties: {}, required: [] }
+        }
+      });
+    }
+    
+    if (toolNames.includes('ssh-tools')) {
+      tools.push({
+        type: 'function',
+        function: {
+          name: 'ssh_connect',
+          description: 'Connect to remote server via SSH',
+          parameters: {
+            type: 'object',
+            properties: {
+              host: { type: 'string', description: 'Remote host address' },
+              user: { type: 'string', description: 'Username' },
+              command: { type: 'string', description: 'Command to execute remotely' }
+            },
+            required: ['host', 'user', 'command']
+          }
+        }
+      });
+      
+      tools.push({
+        type: 'function',
+        function: {
+          name: 'scp_transfer',
+          description: 'Transfer files via SCP',
+          parameters: {
+            type: 'object',
+            properties: {
+              source: { type: 'string', description: 'Source file path' },
+              destination: { type: 'string', description: 'Destination path (user@host:/path)' },
+              direction: { type: 'string', description: 'upload or download' }
+            },
+            required: ['source', 'destination', 'direction']
+          }
+        }
+      });
+      
+      tools.push({
+        type: 'function',
+        function: {
+          name: 'ssh_keygen',
+          description: 'Generate SSH key pair',
+          parameters: {
+            type: 'object',
+            properties: {
+              filename: { type: 'string', description: 'Key filename (default: id_rsa)' },
+              type: { type: 'string', description: 'Key type: rsa, ed25519, etc.' }
+            },
+            required: []
+          }
+        }
+      });
+    }
+    
+    if (toolNames.includes('conversion-tools')) {
+      tools.push({
+        type: 'function',
+        function: {
+          name: 'convert_image',
+          description: 'Convert image between formats',
+          parameters: {
+            type: 'object',
+            properties: {
+              input: { type: 'string', description: 'Input image file' },
+              output: { type: 'string', description: 'Output image file' },
+              format: { type: 'string', description: 'Target format: jpg, png, webp, etc.' }
+            },
+            required: ['input', 'output']
+          }
+        }
+      });
+      
+      tools.push({
+        type: 'function',
+        function: {
+          name: 'convert_text',
+          description: 'Convert text between formats and encodings',
+          parameters: {
+            type: 'object',
+            properties: {
+              text: { type: 'string', description: 'Text to convert' },
+              from_format: { type: 'string', description: 'Source format' },
+              to_format: { type: 'string', description: 'Target format' }
+            },
+            required: ['text', 'to_format']
+          }
+        }
+      });
+      
+      tools.push({
+        type: 'function',
+        function: {
+          name: 'base64_encode',
+          description: 'Encode text or file to Base64',
+          parameters: {
+            type: 'object',
+            properties: {
+              input: { type: 'string', description: 'Text or file path to encode' },
+              is_file: { type: 'boolean', description: 'Whether input is a file path' }
+            },
+            required: ['input']
+          }
+        }
+      });
+      
+      tools.push({
+        type: 'function',
+        function: {
+          name: 'base64_decode',
+          description: 'Decode Base64 to text or file',
+          parameters: {
+            type: 'object',
+            properties: {
+              input: { type: 'string', description: 'Base64 string to decode' },
+              output_file: { type: 'string', description: 'Output file path (optional)' }
+            },
+            required: ['input']
+          }
+        }
+      });
+      
+      tools.push({
+        type: 'function',
+        function: {
+          name: 'hash_generate',
+          description: 'Generate hash (MD5, SHA1, SHA256, etc.)',
+          parameters: {
+            type: 'object',
+            properties: {
+              input: { type: 'string', description: 'Text or file to hash' },
+              algorithm: { type: 'string', description: 'Hash algorithm: md5, sha1, sha256, sha512' },
+              is_file: { type: 'boolean', description: 'Whether input is a file path' }
+            },
+            required: ['input']
           }
         }
       });
