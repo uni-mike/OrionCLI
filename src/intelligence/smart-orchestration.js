@@ -224,6 +224,54 @@ class SmartOrchestration {
   }
   
   /**
+   * Analyze task requirements
+   */
+  async analyzeTaskRequirements(task) {
+    const requirements = {
+      needsFileCheck: false,
+      needsBackup: false,
+      needsValidation: false,
+      mainSteps: [],
+      targetFile: null,
+      validationParams: {}
+    };
+    
+    const taskLower = task.toLowerCase();
+    
+    // Check if file operations are needed
+    if (taskLower.includes('file') || taskLower.includes('edit') || taskLower.includes('modify')) {
+      requirements.needsFileCheck = true;
+      requirements.needsBackup = true;
+      
+      // Extract file name if mentioned
+      const fileMatch = task.match(/['"](.*?)['"]/);
+      if (fileMatch) {
+        requirements.targetFile = fileMatch[1];
+      }
+    }
+    
+    // Determine main steps based on keywords
+    if (taskLower.includes('read')) {
+      requirements.mainSteps.push({ tool: 'read_file', purpose: 'Read file content' });
+    }
+    if (taskLower.includes('edit') || taskLower.includes('modify')) {
+      requirements.mainSteps.push({ tool: 'edit_file', purpose: 'Modify file' });
+      requirements.needsValidation = true;
+    }
+    if (taskLower.includes('create') || taskLower.includes('write')) {
+      requirements.mainSteps.push({ tool: 'write_file', purpose: 'Create or write file' });
+    }
+    if (taskLower.includes('delete') || taskLower.includes('remove')) {
+      requirements.mainSteps.push({ tool: 'delete_file', purpose: 'Delete file' });
+    }
+    if (taskLower.includes('commit')) {
+      requirements.mainSteps.push({ tool: 'git_commit', purpose: 'Commit changes' });
+    }
+    
+    return requirements;
+  }
+  
+  /**
    * Calculate workflow relevance score
    */
   calculateWorkflowScore(task, workflow) {
@@ -253,7 +301,7 @@ class SmartOrchestration {
     const steps = [];
     
     // Analyze task to determine needed tools
-    const analysis = await this.analyzeTask(task);
+    const analysis = await this.analyzeTaskRequirements(task);
     
     // Add preparation steps
     if (analysis.needsFileCheck) {

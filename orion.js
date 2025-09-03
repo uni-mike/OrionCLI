@@ -1025,6 +1025,10 @@ class OrionCLI {
   
   buildSystemPrompt(taskInfo, contextInfo) {
     let prompt = `You are OrionCLI, an advanced AI assistant with access to powerful tools and real-time capabilities.
+
+IMPORTANT: When using tools, you MUST use the proper tool calling format, NOT return JSON strings.
+When asked about a file, use the read_file tool to read it, then explain its contents in natural language.
+Always provide helpful, conversational responses after using tools.
     
 Current Context:
 - Working Directory: ${contextInfo.workingDir}
