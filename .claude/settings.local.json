@@ -24,7 +24,15 @@
       "Bash(node:*)",
       "Bash(git rm:*)",
       "Bash(timeout:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Read(/Users/mike.admon/**)",
+      "Read(/Users/mike.admon/**)",
+      "Read(/Users/mike.admon/UNIPATH_PROJECT/DevOpsTools/GROK/grok-cli/**)",
+      "Read(/Users/mike.admon/UNIPATH_PROJECT/DevOpsTools/GROK/grok-cli/src/**)",
+      "Read(/Users/mike.admon/UNIPATH_PROJECT/DevOpsTools/GROK/grok-cli/src/**)",
+      "Read(/Users/mike.admon/UNIPATH_PROJECT/DevOpsTools/GROK/grok-cli/src/**)",
+      "Read(/Users/mike.admon/UNIPATH_PROJECT/DevOpsTools/GROK/grok-cli/src/**)",
+      "Bash(git restore:*)"
     ],
     "deny": [],
     "ask": []

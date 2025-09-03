@@ -581,6 +581,11 @@ class OrionCLI {
     // Convert to string if needed
     content = String(content);
     
+    // Skip empty messages for assistant
+    if (type === 'assistant' && !content.trim()) {
+      return;
+    }
+    
     let prefix = '';
     let color = colors.text;
     
@@ -1188,38 +1193,32 @@ class OrionCLI {
           }
           
           // Only show the cleaned response (without JSON)
-          if (parsed.cleanText) {
-            const lines = parsed.cleanText.split('\n');
-            lines.forEach((line, index) => {
-              if (line.trim()) {
-                this.addMessage('assistant', line);
-              }
-            });
+          if (parsed.cleanText && parsed.cleanText.trim()) {
+            // Add as single message to avoid multiple renders
+            this.addMessage('assistant', parsed.cleanText);
           }
           
           // Check if there's an active plan to continue
-          if (this.orchestration.activePlan) {
-            const planStatus = this.orchestration.getPlanStatus();
-            if (planStatus.remainingTodos > 0) {
-              // Continue with next todo automatically
-              this.addMessage('system', colors.info(`⏭️ Continuing with next task (${planStatus.remainingTodos} remaining)`));
-              this.render();
-              
-              // Process next step after short delay
-              setTimeout(() => {
-                const nextTodo = this.orchestration.activePlan.todos.find(t => t.status === 'pending');
-                if (nextTodo) {
-                  this.processWithAI(`Continue with: ${nextTodo.content}`);
-                }
-              }, 500);
-            }
-          }
-        } else {
-          // No JSON tools, show response normally
-          const lines = response.split('\n');
-          lines.forEach((line, index) => {
-            this.addMessage('assistant', line || (index < lines.length - 1 ? ' ' : ''));
-          });
+          // DISABLED: Auto-continuation causes recursive loop and rendering issues
+          // if (this.orchestration.activePlan) {
+          //   const planStatus = this.orchestration.getPlanStatus();
+          //   if (planStatus.remainingTodos > 0) {
+          //     // Continue with next todo automatically
+          //     this.addMessage('system', colors.info(`⏭️ Continuing with next task (${planStatus.remainingTodos} remaining)`));
+          //     this.render();
+          //     
+          //     // Process next step after short delay
+          //     setTimeout(() => {
+          //       const nextTodo = this.orchestration.activePlan.todos.find(t => t.status === 'pending');
+          //       if (nextTodo) {
+          //         this.processWithAI(`Continue with: ${nextTodo.content}`);
+          //       }
+          //     }, 500);
+          //   }
+          // }
+        } else if (response) {
+          // No JSON tools, show response normally as single message
+          this.addMessage('assistant', response);
         }
         
         // Add assistant response to conversation history
@@ -1523,7 +1522,7 @@ Be helpful, precise, and use tools when available. Provide real results, not gen
     for (const toolCall of toolCalls) {
       // Show minimal tool execution indicator
       this.addMessage('system', colors.tool(`🔧 ${toolCall.function.name}`));
-      this.render();
+      // Don't render for each tool - batch at the end
       
       try {
         const args = JSON.parse(toolCall.function.arguments);
@@ -1592,13 +1591,15 @@ Be helpful, precise, and use tools when available. Provide real results, not gen
         } else {
           this.addMessage('tool', colors.warning('Tool executed but returned no output'));
         }
-        this.render();
+        // Don't render inside loop
         
       } catch (error) {
         this.addMessage('error', `${error.message}`);
-        this.render();
+        // Don't render inside loop
       }
     }
+    // Single render after all tools complete
+    this.render();
   }
   
   async executeBashCommand(command) {
