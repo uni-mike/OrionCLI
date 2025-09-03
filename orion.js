@@ -14,7 +14,7 @@ const OpenAI = require('openai').default;
 const fs = require('fs').promises;
 const path = require('path');
 const marked = require('marked');
-const TerminalRenderer = require('marked-terminal');
+const TerminalRenderer = require('marked-terminal').default || require('marked-terminal');
 const OrionToolRegistry = require('./src/tools/orion-tool-registry');
 const JsonToolParser = require('./src/tools/json-tool-parser');
 const PermissionManager = require('./src/permissions/permission-manager');
@@ -622,14 +622,8 @@ class OrionCLI {
     const formattedMessage = prefix + formattedContent;
     this.messages.push(formattedMessage);
     
-    // In append mode, directly output the message
-    if (this.renderMode === 'append') {
-      // Clear current line and print message
-      process.stdout.write('\x1B[2K\r'); // Clear line
-      console.log(formattedMessage); // Print message
-      // Redraw input line
-      this.renderInputLine();
-    }
+    // Don't try to insert above - just add to message list
+    // The render system will handle display
     
     // Limit history
     if (this.messages.length > 500) {
@@ -1151,15 +1145,18 @@ class OrionCLI {
       
       // Add tools if task requires them
       if (taskInfo.needsTools) {
-        completionParams.tools = this.toolRegistry.getToolDefinitions(taskInfo.tools);
-        completionParams.tool_choice = 'auto'; // Force tool usage when appropriate
-        
-        // Debug: Show what tools are being provided
-        if (process.env.DEBUG_TOOLS) {
-          console.log(colors.dim(`[DEBUG] Providing ${completionParams.tools.length} tools to AI`));
-          completionParams.tools.forEach(t => {
-            console.log(colors.dim(`  - ${t.function.name}`));
-          });
+        const toolDefs = this.toolRegistry.getToolDefinitions(taskInfo.tools);
+        if (toolDefs && toolDefs.length > 0) {
+          completionParams.tools = toolDefs;
+          completionParams.tool_choice = 'auto'; // Let AI decide when to use tools
+          
+          // Debug: Show what tools are being provided
+          if (process.env.DEBUG_TOOLS) {
+            console.log(colors.dim(`📦 Providing ${toolDefs.length} tools to AI for: ${taskInfo.type}`));
+            toolDefs.forEach(t => {
+              console.log(colors.dim(`  - ${t.function.name}: ${t.function.description}`));
+            });
+          }
         }
       }
 
@@ -1168,17 +1165,20 @@ class OrionCLI {
       
       // Handle tool calls if present (proper OpenAI format)
       if (completion.choices[0].message.tool_calls) {
-        if (process.env.DEBUG_TOOLS) {
-          console.log(colors.dim(`[DEBUG] AI returned ${completion.choices[0].message.tool_calls.length} tool calls`));
-        }
         await this.handleToolCalls(completion.choices[0].message.tool_calls);
-      } else if (process.env.DEBUG_TOOLS) {
-        console.log(colors.dim(`[DEBUG] No tool calls in response`));
       }
       
       // Check for JSON tool calls in response (Azure OpenAI fallback)
       if (response) {
         const parsed = JsonToolParser.processResponse(response);
+        
+        // Debug logging
+        if (process.env.DEBUG_TOOLS && parsed.hasTools) {
+          console.log(colors.dim(`🔍 Found ${parsed.toolCalls.length} JSON tool calls`));
+          parsed.toolCalls.forEach(tc => {
+            console.log(colors.dim(`  → ${tc.function.name}`));
+          });
+        }
         
         // If JSON tools were found, execute them
         if (parsed.hasTools && parsed.toolCalls.length > 0) {
@@ -1506,7 +1506,13 @@ WEB SEARCH:
 
 IMPORTANT: Always use the RIGHT tool for the task. Read files when asked ABOUT them, not just check existence!`;
     
-    prompt += `\n\nBe helpful, precise, and use tools when available. Provide real results, not generic responses.`;
+    prompt += `\n\nIMPORTANT: When you need to use a tool, output it in this exact JSON format on its own line:
+{"tool": "tool_name", "args": {"param1": "value1", "param2": "value2"}}
+
+For example:
+{"tool": "read_file", "args": {"filename": "example.md"}}
+
+Be helpful, precise, and use tools when available. Provide real results, not generic responses.`;
     
     return prompt;
   }

@@ -71,14 +71,47 @@ class JsonToolParser {
       };
     }
     
-    // Format 2: {"tool": "read_file", "filename": "README.md"}
+    // Format 2: {"tool": "read_file", "args": {...}} or {"tool": "read_file", "filename": "README.md"}
     if (json.tool) {
-      const args = { ...json };
-      delete args.tool;
+      // Map common tool name variations to actual tool names
+      const toolNameMap = {
+        'write_to_file': 'write_file',
+        'create_file': 'write_file',
+        'modify_file': 'edit_file',
+        'read': 'read_file',
+        'bash': 'execute_bash',
+        'run_command': 'execute_bash',
+        'shell': 'execute_bash'
+      };
+      
+      let toolName = toolNameMap[json.tool] || json.tool;
+      
+      // If args field exists, use it, otherwise use all other fields as args
+      let args = json.args || (() => {
+        const temp = { ...json };
+        delete temp.tool;
+        return temp;
+      })();
+      
+      // Special handling for update_file - determine if it should be write_file or actual update_file
+      if (json.tool === 'update_file') {
+        // If content looks like a complete file (has mermaid blocks, multiple sections, etc.)
+        // then use write_file instead
+        if (args.content && (
+          args.content.includes('```mermaid') ||
+          args.content.length > 500 ||
+          args.content.split('\n').length > 20
+        )) {
+          toolName = 'write_file';
+        } else if (!args.mode) {
+          // If no mode specified and content is short, assume append
+          args.mode = 'append';
+        }
+      }
       
       return {
         function: {
-          name: json.tool,
+          name: toolName,
           arguments: JSON.stringify(args)
         }
       };
