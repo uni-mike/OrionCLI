@@ -325,6 +325,9 @@ class OrionCLI {
   formatMessage(msg) {
     if (!msg) return '';
     
+    // Ensure msg is a string
+    msg = String(msg);
+    
     const maxWidth = this.terminalWidth - 4;
     const lines = msg.split('\n');
     return lines.map(line => {
@@ -437,6 +440,14 @@ class OrionCLI {
   }
 
   addMessage(type, content) {
+    // Handle null/undefined content
+    if (content === null || content === undefined) {
+      content = '';
+    }
+    
+    // Convert to string if needed
+    content = String(content);
+    
     let prefix = '';
     let color = colors.text;
     
@@ -820,17 +831,20 @@ class OrionCLI {
         await this.handleToolCalls(completion.choices[0].message.tool_calls);
       }
       
-      // Add response line by line for better display
-      const lines = response.split('\n');
-      lines.forEach((line, index) => {
-        this.addMessage('assistant', line || (index < lines.length - 1 ? ' ' : ''));
-      });
-      
-      // Add assistant response to conversation history
-      this.conversationHistory.push({
-        role: 'assistant',
-        content: response
-      });
+      // Only process response if there is content (AI might only return tool calls)
+      if (response) {
+        // Add response line by line for better display
+        const lines = response.split('\n');
+        lines.forEach((line, index) => {
+          this.addMessage('assistant', line || (index < lines.length - 1 ? ' ' : ''));
+        });
+        
+        // Add assistant response to conversation history
+        this.conversationHistory.push({
+          role: 'assistant',
+          content: response
+        });
+      }
     } catch (error) {
       this.addMessage('error', `${error.message}`);
     } finally {
@@ -1511,8 +1525,12 @@ Available Tools: ${taskInfo.needsTools ? taskInfo.tools.join(', ') : 'none requi
           result = await this.toolRegistry.executeTool(toolCall.function.name, args);
         }
         
-        // Show clean result
-        this.addMessage('tool', colors.success(`${result}`));
+        // Show clean result (handle null/undefined results)
+        if (result !== null && result !== undefined) {
+          this.addMessage('tool', colors.success(`${result}`));
+        } else {
+          this.addMessage('tool', colors.warning('Tool executed but returned no output'));
+        }
         this.render();
         
       } catch (error) {
