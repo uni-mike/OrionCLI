@@ -866,12 +866,32 @@ class OrionCLI {
     }
     
     // Code tasks
-    if (/\b(code|function|class|debug|implement|fix|syntax|error|bug)\b/.test(lowerInput)) {
+    if (/\b(code|function|class|debug|implement|fix|syntax|error|bug|test|format|lint|analyze)\b/.test(lowerInput)) {
       return {
         type: 'coding task',
         needsTools: true,
-        tools: ['code-tools', 'text-editor'],
+        tools: ['code-tools', 'file-tools', 'git-tools', 'bash'],
         priority: 'high'
+      };
+    }
+    
+    // Git operations
+    if (/\b(git|commit|push|pull|merge|branch|status|diff|log)\b/.test(lowerInput)) {
+      return {
+        type: 'git operation',
+        needsTools: true,
+        tools: ['git-tools', 'bash'],
+        priority: 'high'
+      };
+    }
+    
+    // System operations
+    if (/\b(system|process|disk|memory|cpu|performance|monitor)\b/.test(lowerInput)) {
+      return {
+        type: 'system query',
+        needsTools: true,
+        tools: ['system-tools', 'bash'],
+        priority: 'medium'
       };
     }
     
@@ -1002,6 +1022,7 @@ Available Tools: ${taskInfo.needsTools ? taskInfo.tools.join(', ') : 'none requi
     }
     
     if (toolNames.includes('file-tools')) {
+      // File operations
       tools.push({
         type: 'function',
         function: {
@@ -1010,14 +1031,8 @@ Available Tools: ${taskInfo.needsTools ? taskInfo.tools.join(', ') : 'none requi
           parameters: {
             type: 'object',
             properties: {
-              filename: {
-                type: 'string',
-                description: 'The name of the file to write'
-              },
-              content: {
-                type: 'string',
-                description: 'The content to write to the file'
-              }
+              filename: { type: 'string', description: 'The name of the file to write' },
+              content: { type: 'string', description: 'The content to write to the file' }
             },
             required: ['filename', 'content']
           }
@@ -1032,12 +1047,174 @@ Available Tools: ${taskInfo.needsTools ? taskInfo.tools.join(', ') : 'none requi
           parameters: {
             type: 'object',
             properties: {
-              filename: {
-                type: 'string',
-                description: 'The name of the file to read'
-              }
+              filename: { type: 'string', description: 'The name of the file to read' }
             },
             required: ['filename']
+          }
+        }
+      });
+      
+      tools.push({
+        type: 'function',
+        function: {
+          name: 'edit_file',
+          description: 'Edit a file by replacing specific text',
+          parameters: {
+            type: 'object',
+            properties: {
+              filename: { type: 'string', description: 'The name of the file to edit' },
+              old_text: { type: 'string', description: 'The text to replace' },
+              new_text: { type: 'string', description: 'The replacement text' }
+            },
+            required: ['filename', 'old_text', 'new_text']
+          }
+        }
+      });
+      
+      tools.push({
+        type: 'function',
+        function: {
+          name: 'list_files',
+          description: 'List files in a directory',
+          parameters: {
+            type: 'object',
+            properties: {
+              directory: { type: 'string', description: 'Directory path (default: current)' }
+            },
+            required: []
+          }
+        }
+      });
+    }
+    
+    if (toolNames.includes('code-tools')) {
+      tools.push({
+        type: 'function',
+        function: {
+          name: 'analyze_code',
+          description: 'Analyze code for issues, patterns, or improvements',
+          parameters: {
+            type: 'object',
+            properties: {
+              filename: { type: 'string', description: 'Code file to analyze' },
+              analysis_type: { type: 'string', description: 'Type: syntax, performance, style, security' }
+            },
+            required: ['filename']
+          }
+        }
+      });
+      
+      tools.push({
+        type: 'function',
+        function: {
+          name: 'run_tests',
+          description: 'Run tests in the project',
+          parameters: {
+            type: 'object',
+            properties: {
+              test_file: { type: 'string', description: 'Specific test file or pattern' },
+              framework: { type: 'string', description: 'Test framework: jest, mocha, pytest, etc.' }
+            },
+            required: []
+          }
+        }
+      });
+      
+      tools.push({
+        type: 'function',
+        function: {
+          name: 'format_code',
+          description: 'Format code using standard formatters',
+          parameters: {
+            type: 'object',
+            properties: {
+              filename: { type: 'string', description: 'File to format' },
+              formatter: { type: 'string', description: 'Formatter: prettier, black, gofmt, etc.' }
+            },
+            required: ['filename']
+          }
+        }
+      });
+    }
+    
+    if (toolNames.includes('git-tools')) {
+      tools.push({
+        type: 'function',
+        function: {
+          name: 'git_status',
+          description: 'Show git repository status',
+          parameters: { type: 'object', properties: {}, required: [] }
+        }
+      });
+      
+      tools.push({
+        type: 'function',
+        function: {
+          name: 'git_diff',
+          description: 'Show git diff',
+          parameters: {
+            type: 'object',
+            properties: {
+              filename: { type: 'string', description: 'Specific file to diff' }
+            },
+            required: []
+          }
+        }
+      });
+      
+      tools.push({
+        type: 'function',
+        function: {
+          name: 'git_commit',
+          description: 'Create a git commit',
+          parameters: {
+            type: 'object',
+            properties: {
+              message: { type: 'string', description: 'Commit message' },
+              files: { type: 'array', items: { type: 'string' }, description: 'Files to commit' }
+            },
+            required: ['message']
+          }
+        }
+      });
+    }
+    
+    if (toolNames.includes('system-tools')) {
+      tools.push({
+        type: 'function',
+        function: {
+          name: 'system_info',
+          description: 'Get system information',
+          parameters: { type: 'object', properties: {}, required: [] }
+        }
+      });
+      
+      tools.push({
+        type: 'function',
+        function: {
+          name: 'process_list',
+          description: 'List running processes',
+          parameters: {
+            type: 'object',
+            properties: {
+              filter: { type: 'string', description: 'Filter processes by name' }
+            },
+            required: []
+          }
+        }
+      });
+      
+      tools.push({
+        type: 'function',
+        function: {
+          name: 'disk_usage',
+          description: 'Show disk usage information',
+          parameters: {
+            type: 'object',
+            properties: {
+              path: { type: 'string', description: 'Path to check (default: current)' }
+            },
+            required: []
           }
         }
       });
@@ -1063,11 +1240,52 @@ Available Tools: ${taskInfo.needsTools ? taskInfo.tools.join(', ') : 'none requi
           case 'web_search':
             result = `Web search for "${args.query}" would be performed here`;
             break;
+          
+          // File tools
           case 'write_file':
             result = await this.writeFile(args.filename, args.content);
             break;
           case 'read_file':
             result = await this.readFile(args.filename);
+            break;
+          case 'edit_file':
+            result = await this.editFile(args.filename, args.old_text, args.new_text);
+            break;
+          case 'list_files':
+            result = await this.listFiles(args.directory || '.');
+            break;
+            
+          // Code tools
+          case 'analyze_code':
+            result = await this.analyzeCode(args.filename, args.analysis_type);
+            break;
+          case 'run_tests':
+            result = await this.runTests(args.test_file, args.framework);
+            break;
+          case 'format_code':
+            result = await this.formatCode(args.filename, args.formatter);
+            break;
+            
+          // Git tools
+          case 'git_status':
+            result = await this.executeBashCommand('git status');
+            break;
+          case 'git_diff':
+            result = await this.executeBashCommand(args.filename ? `git diff ${args.filename}` : 'git diff');
+            break;
+          case 'git_commit':
+            result = await this.gitCommit(args.message, args.files);
+            break;
+            
+          // System tools
+          case 'system_info':
+            result = await this.getSystemInfo();
+            break;
+          case 'process_list':
+            result = await this.getProcessList(args.filter);
+            break;
+          case 'disk_usage':
+            result = await this.getDiskUsage(args.path || '.');
             break;
         }
         
@@ -1111,6 +1329,95 @@ Available Tools: ${taskInfo.needsTools ? taskInfo.tools.join(', ') : 'none requi
     } catch (error) {
       throw new Error(`Failed to read file '${filename}': ${error.message}`);
     }
+  }
+
+  async editFile(filename, oldText, newText) {
+    try {
+      const content = await fs.readFile(filename, 'utf8');
+      const newContent = content.replace(oldText, newText);
+      await fs.writeFile(filename, newContent, 'utf8');
+      return `✏️ File '${filename}' edited successfully (replaced "${oldText.slice(0,50)}...")`;
+    } catch (error) {
+      throw new Error(`Failed to edit file '${filename}': ${error.message}`);
+    }
+  }
+
+  async listFiles(directory) {
+    try {
+      const files = await fs.readdir(directory, { withFileTypes: true });
+      const fileList = files.map(file => 
+        file.isDirectory() ? `📁 ${file.name}/` : `📄 ${file.name}`
+      ).join('\n');
+      return `📂 Files in '${directory}':\n\n${fileList}`;
+    } catch (error) {
+      throw new Error(`Failed to list files in '${directory}': ${error.message}`);
+    }
+  }
+
+  async analyzeCode(filename, analysisType = 'general') {
+    try {
+      const content = await fs.readFile(filename, 'utf8');
+      const lines = content.split('\n').length;
+      const chars = content.length;
+      const ext = path.extname(filename);
+      
+      return `🔍 Code Analysis for '${filename}' (${analysisType}):\n\n` +
+             `Lines: ${lines}, Characters: ${chars}, Type: ${ext}\n` +
+             `Analysis would check for: syntax, performance, style, security issues`;
+    } catch (error) {
+      throw new Error(`Failed to analyze '${filename}': ${error.message}`);
+    }
+  }
+
+  async runTests(testFile, framework) {
+    const command = framework === 'jest' ? 'npm test' : 
+                   framework === 'pytest' ? 'pytest' :
+                   testFile ? `npm test ${testFile}` : 'npm test';
+    return await this.executeBashCommand(command);
+  }
+
+  async formatCode(filename, formatter) {
+    const command = formatter === 'prettier' ? `prettier --write ${filename}` :
+                   formatter === 'black' ? `black ${filename}` :
+                   `prettier --write ${filename}`;
+    return await this.executeBashCommand(command);
+  }
+
+  async gitCommit(message, files) {
+    try {
+      if (files && files.length > 0) {
+        await this.executeBashCommand(`git add ${files.join(' ')}`);
+      } else {
+        await this.executeBashCommand('git add .');
+      }
+      return await this.executeBashCommand(`git commit -m "${message}"`);
+    } catch (error) {
+      throw new Error(`Git commit failed: ${error.message}`);
+    }
+  }
+
+  async getSystemInfo() {
+    const platform = process.platform;
+    const arch = process.arch;
+    const nodeVersion = process.version;
+    const uptime = Math.floor(process.uptime());
+    
+    return `💻 System Information:\n\n` +
+           `Platform: ${platform}\n` +
+           `Architecture: ${arch}\n` +
+           `Node.js: ${nodeVersion}\n` +
+           `Uptime: ${uptime}s`;
+  }
+
+  async getProcessList(filter) {
+    const command = process.platform === 'win32' ? 'tasklist' :
+                   filter ? `ps aux | grep ${filter}` : 'ps aux';
+    return await this.executeBashCommand(command);
+  }
+
+  async getDiskUsage(path) {
+    const command = process.platform === 'win32' ? `dir "${path}"` : `du -sh "${path}"`;
+    return await this.executeBashCommand(command);
   }
 
   exit() {
