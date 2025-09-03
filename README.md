@@ -1,15 +1,37 @@
 # OrionCLI - Enhanced Azure OpenAI Assistant
 
-A beautiful, intelligent command-line interface for Azure OpenAI models with smart task routing and comprehensive features.
+A beautiful, intelligent command-line interface for Azure OpenAI models with smart task routing, modular tool system, and comprehensive features.
 
 ## ✨ Features
 
 - 🧠 **Intelligent Model Routing**: Auto-selects optimal model based on task analysis
 - 🎨 **Beautiful UI**: Stunning ASCII art, vibrant colors, flicker-free interface
 - ⚡ **6 AI Models**: GPT-5, GPT-5-Chat, GPT-5-Mini, O3, O4-Mini, GPT-4o
+- 🔧 **Modular Tool System**: 8 tool categories with 43+ specialized tools
 - 📊 **Smart Status Display**: Comprehensive context awareness
-- 🔧 **Advanced Tools**: Integrated tool system with MCP support
 - 💫 **Professional Experience**: Input at bottom, messages scroll above
+- 🚀 **AI-First Approach**: Let AI combine basic tools for complex tasks
+
+## 🆕 Latest Updates (v2.1.0)
+
+### Modular Tool Architecture
+- **8 Focused Tool Categories**: Streamlined from initial design
+- **43 Essential Tools**: Practical, frequently-used operations
+- **Smart Tool Registry**: Centralized management and discovery
+- **Robust Error Handling**: Fixed null/undefined edge cases
+
+### Tool Categories
+
+| Category | Tools | Description |
+|----------|-------|-------------|
+| **File Tools** | 4 | Read, write, edit, list files |
+| **Git Tools** | 8 | Status, commit, push, branch management |
+| **System Tools** | 6 | Process, memory, disk, network info |
+| **SSH Tools** | 4 | Remote connections, file transfers |
+| **Docker Tools** | 7 | Container and image management |
+| **Database Tools** | 4 | Query, backup, restore, schema |
+| **Conversion Tools** | 6 | Base64, hash, JSON, text formatting |
+| **Web Search Tools** | 4 | Programming, security, documentation search |
 
 ## Available Models
 
@@ -25,7 +47,7 @@ A beautiful, intelligent command-line interface for Azure OpenAI models with sma
 ## 🚀 Quick Start
 
 ```bash
-node orion-pro.js
+node orion.js
 ```
 
 **That's it!** OrionCLI will launch with the beautiful interface and intelligent features.
@@ -42,11 +64,19 @@ OrionCLI automatically analyzes your input and selects the optimal model:
 - **Creative writing** → GPT-5-Chat (stories, essays, brainstorming)
 - **Technical docs** → GPT-5 (documentation, explanations)
 
+### 🔧 Modular Tool System
+The tool system follows an **AI-first philosophy**:
+- Core tools handle basic operations
+- AI intelligently combines tools for complex tasks
+- No over-engineered enterprise features
+- Focus on practical, everyday developer needs
+
 ### 📊 Status Display
 - **Auto-edit toggle**: Prominently displayed under input
 - **Active file context**: Shows current working file
 - **Session info**: Timer, command count, current directory
 - **Model indicator**: Current model with icon and color
+- **Tool execution**: Clean, minimal output with emojis
 
 ## 🎮 Commands
 
@@ -78,35 +108,91 @@ AZURE_OPENAI_API_VERSION=2024-12-01-preview
 
 3. **Run OrionCLI**:
 ```bash
-node orion-pro.js
+node orion.js
 ```
 
 ## 📁 Project Structure
 
 ```
 OrionCLI/
-├── orion-pro.js     # Main enhanced CLI (use this!)
-├── src/             # TypeScript source code
+├── orion.js         # Main enhanced CLI (use this!)
+├── src/             
+│   ├── tools/       # Modular tool implementations
+│   │   ├── orion-tool-registry.js  # Central registry
+│   │   ├── file-tools.js           # File operations
+│   │   ├── git-tools.js            # Git operations
+│   │   ├── system-tools.js         # System monitoring
+│   │   ├── ssh-tools.js            # SSH operations
+│   │   ├── docker-tools.js         # Docker management
+│   │   ├── database-tools.js       # Database operations
+│   │   ├── conversion-tools.js     # Data conversions
+│   │   └── web-search-tools.js     # Enhanced web search
+│   └── ...          # TypeScript source (legacy)
 ├── package.json     # Dependencies
 ├── .env             # API keys (create this)
 ├── _ARCHIVE/        # Archived old versions
 └── README.md        # This file
 ```
 
-## 🔧 Technical Details
+## 🔧 Technical Architecture
 
+### Core Design Principles
+- **Simplicity**: Focus on essential features, avoid bloat
+- **Modularity**: Clean separation of concerns
+- **AI-First**: Let AI orchestrate tool combinations
+- **Reliability**: Robust error handling and edge cases
+
+### Implementation Details
 - **Framework**: Node.js with enhanced terminal UI libraries
 - **AI Integration**: Azure OpenAI with 6 model deployments
 - **Smart Routing**: ML-based task classification system
 - **UI**: Flicker-free terminal with boxen, gradient-string, figlet
-- **Architecture**: Preserved all grok-cli features with enhancements
+- **Tool System**: Modular architecture with centralized registry
+- **Error Handling**: Comprehensive null/undefined protection
 
-## 🏗️ Development
+## 📋 TODO & Status
 
-The codebase includes both JavaScript (current) and TypeScript (legacy) versions:
-- Use `orion-pro.js` for the enhanced experience
-- TypeScript source in `src/` maintained for future development
-- Archived versions in `_ARCHIVE/` for reference
+### ✅ Completed
+- [x] Intelligent model routing based on task type
+- [x] Beautiful ASCII art and gradient effects
+- [x] Flicker-free rendering with optimized updates
+- [x] Smart task classification system
+- [x] Modular tool architecture implementation
+- [x] 8 tool categories with 43+ tools
+- [x] Centralized tool registry
+- [x] Enhanced web search for programming/security
+- [x] Robust null/undefined handling
+- [x] Streamlined architecture (removed over-engineered features)
+
+### 🚧 In Progress
+- [ ] Tool execution feedback improvements
+- [ ] Advanced tool composition patterns
+- [ ] Performance optimization for large operations
+
+### 📝 Planned
+- [ ] Tool usage analytics
+- [ ] Custom tool plugin system
+- [ ] Tool execution history
+- [ ] Batch operation support
+- [ ] Tool configuration presets
+
+## 🏗️ Development Philosophy
+
+The codebase follows these principles:
+- **Quality over Quantity**: ~15-20 well-implemented tools > 70+ rarely used ones
+- **AI Intelligence**: Let AI combine simple tools creatively
+- **User Experience**: Clean, minimal output without overwhelming details
+- **Maintainability**: Modular design for easy updates and debugging
+- **Pragmatism**: Focus on real developer needs, not enterprise theater
+
+## 🔒 Security Note
+
+- Keep `.gitignore` simple to avoid data loss
+- Never commit API keys or sensitive data
+- Tool execution is sandboxed within Node.js environment
+- File operations require explicit user input
 
 ---
 **OrionCLI** - *Where AI meets beautiful terminal experiences* ✨🚀
+
+Built with love by Mike Admon
