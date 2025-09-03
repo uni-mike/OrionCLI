@@ -399,22 +399,29 @@ class OrionCLI {
     const textBeforeCursor = this.inputBuffer.substring(0, this.cursorPosition);
     const lines = textBeforeCursor.split('\n');
     
-    // Current line index (0-based)
+    // Current line index (0-based) within the input
     const currentLineIndex = lines.length - 1;
     // Column position within current line  
     const columnInLine = lines[currentLineIndex].length;
     
-    // Calculate base position of input box
+    // Calculate terminal layout positions
     const reservedLines = 10;
     const messageAreaHeight = Math.max(5, this.terminalHeight - reservedLines);
-    const inputBoxStartLine = messageAreaHeight + 4; // First line inside input box
     
-    // Cursor line = input box start + current line index
-    const cursorLine = inputBoxStartLine + currentLineIndex;
-    // Cursor column = left border + padding + column in line
-    const cursorCol = 3 + columnInLine; // Border + padding + position
+    // Layout: messages + empty_lines + status_line + input_area
+    // Input area starts immediately after status line
+    const inputAreaStartLine = messageAreaHeight + 2; // +1 for status line, +1 for input box top border
     
-    process.stdout.write(`\x1B[${cursorLine};${cursorCol}H`);
+    // Cursor position: input area start + current line within input + border offset
+    const cursorLine = inputAreaStartLine + currentLineIndex;
+    // Column: left margin + border + padding + position within line
+    const cursorCol = 3 + columnInLine; // 1 for margin + 1 for border + 1 for padding + position
+    
+    // Make sure we don't go outside terminal bounds
+    const maxLine = this.terminalHeight - 1;
+    const finalLine = Math.min(cursorLine, maxLine);
+    
+    process.stdout.write(`\x1B[${finalLine};${cursorCol}H`);
     process.stdout.write('\x1B[?25h');
   }
 
