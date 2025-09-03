@@ -9,7 +9,21 @@
       "Bash(git commit:*)",
       "Bash(git filter-branch:*)",
       "Bash(\"git rm --cached --ignore-unmatch SETUP.md orion\" )",
-      "Bash(git init:*)"
+      "Bash(git init:*)",
+      "Bash(gh repo view:*)",
+      "Bash(chmod:*)",
+      "Bash(./port-grok-features.sh:*)",
+      "Bash(tree:*)",
+      "Bash(npm install)",
+      "Bash(npm install:*)",
+      "Bash(./run-dev.sh:*)",
+      "Bash(find:*)",
+      "Bash(npm run build:*)",
+      "Bash(sed:*)",
+      "Bash(./fix-build.sh)",
+      "Bash(node:*)",
+      "Bash(git rm:*)",
+      "Bash(timeout:*)"
     ],
     "deny": [],
     "ask": []

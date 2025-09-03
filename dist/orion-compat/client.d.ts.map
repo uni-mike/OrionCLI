@@ -1,0 +1,1 @@
+{"version":3,"file":"client.d.ts","sourceRoot":"","sources":["../../src/orion-compat/client.ts"],"names":[],"mappings":"AAAA;;;GAGG;AAEH,OAAO,EACL,WAAW,IAAI,UAAU,EACzB,YAAY,IAAI,WAAW,EAC3B,SAAS,IAAI,QAAQ,EACrB,aAAa,IAAI,YAAY,EAC7B,aAAa,IAAI,YAAY,EAC7B,WAAW,IAAI,UAAU,EAC1B,MAAM,iBAAiB,CAAC;AAGzB,YAAY,EAAE,YAAY,IAAI,OAAO,EAAE,MAAM,iBAAiB,CAAC"}

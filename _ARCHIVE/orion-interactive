@@ -1,0 +1,12 @@
+#!/bin/bash
+
+# OrionCLI Interactive Mode
+# Run the development version with all features
+
+# Load environment
+if [ -f ".env" ]; then
+    export $(grep -v '^#' .env | xargs)
+fi
+
+# Run the interactive CLI
+exec node "$(dirname "$0")/orion-dev.js" "$@"
