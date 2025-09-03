@@ -18,7 +18,6 @@ const JsonToolParser = require('./src/tools/json-tool-parser');
 const PermissionManager = require('./src/permissions/permission-manager');
 const PermissionPrompt = require('./src/permissions/permission-prompt');
 const TaskUnderstanding = require('./src/intelligence/task-understanding');
-const SmartOrchestration = require('./src/intelligence/smart-orchestration');
 const EnhancedOrchestration = require('./src/intelligence/enhanced-orchestration');
 const ProjectAwareness = require('./src/intelligence/project-awareness');
 const { exec } = require('child_process');
@@ -81,8 +80,7 @@ class OrionCLI {
     
     // Intelligence systems
     this.taskUnderstanding = new TaskUnderstanding();
-    this.orchestration = new SmartOrchestration();
-    this.enhancedOrchestration = new EnhancedOrchestration();
+    this.orchestration = new EnhancedOrchestration(); // Single orchestration system
     this.projectAwareness = new ProjectAwareness();
     
     // Permission system
@@ -915,13 +913,13 @@ class OrionCLI {
       }
       
       // Create execution plan using enhanced orchestration
-      const executionPlan = await this.enhancedOrchestration.buildExecutionPlan(input, contextInfo);
+      const executionPlan = await this.orchestration.buildExecutionPlan(input, contextInfo);
       
       // Check if todo planning is required
-      const todoCheck = this.enhancedOrchestration.requiresTodoPlanning(input, contextInfo);
+      const todoCheck = this.orchestration.requiresTodoPlanning(input, contextInfo);
       if (todoCheck.required) {
         // Display the execution plan with todos
-        const planDisplay = this.enhancedOrchestration.formatPlanForDisplay(executionPlan);
+        const planDisplay = this.orchestration.formatPlanForDisplay(executionPlan);
         this.addMessage('system', colors.info(planDisplay));
         this.render();
         
@@ -1000,8 +998,8 @@ class OrionCLI {
           }
           
           // Check if there's an active plan to continue
-          if (this.enhancedOrchestration.activePlan) {
-            const planStatus = this.enhancedOrchestration.getPlanStatus();
+          if (this.orchestration.activePlan) {
+            const planStatus = this.orchestration.getPlanStatus();
             if (planStatus.remainingTodos > 0) {
               // Continue with next todo automatically
               this.addMessage('system', colors.info(`⏭️ Continuing with next task (${planStatus.remainingTodos} remaining)`));
@@ -1009,7 +1007,7 @@ class OrionCLI {
               
               // Process next step after short delay
               setTimeout(() => {
-                const nextTodo = this.enhancedOrchestration.activePlan.todos.find(t => t.status === 'pending');
+                const nextTodo = this.orchestration.activePlan.todos.find(t => t.status === 'pending');
                 if (nextTodo) {
                   this.processWithAI(`Continue with: ${nextTodo.content}`);
                 }

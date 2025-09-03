@@ -36,6 +36,25 @@ class EnhancedOrchestration {
       }
     };
     
+    // Parallel execution groups - tools that can run simultaneously
+    this.parallelGroups = {
+      analysis: ['read_file', 'list_files', 'git_status', 'file_exists', 'view_file'],
+      search: ['search_files', 'grep_content', 'find_references'],
+      validation: ['run_tests', 'lint_code', 'type_check'],
+      info: ['system_info', 'process_list', 'disk_usage', 'memory_info']
+    };
+    
+    // Tool success patterns for validation
+    this.successPatterns = {
+      file_created: /created successfully|✅.*created/i,
+      file_edited: /edited successfully|✏️.*replaced/i,
+      file_deleted: /deleted successfully|🗑️.*deleted/i,
+      tests_passed: /all tests pass|✅.*passed/i,
+      build_success: /build successful|successfully built/i,
+      commit_created: /commit [a-f0-9]+|\[master [a-f0-9]+\]/i,
+      command_success: /exit code 0|completed successfully/i
+    };
+    
     // Tool chains for automatic sequencing
     this.toolChains = {
       fileModification: [
