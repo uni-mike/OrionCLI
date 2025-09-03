@@ -1505,13 +1505,42 @@ WEB SEARCH:
 
 IMPORTANT: Always use the RIGHT tool for the task. Read files when asked ABOUT them, not just check existence!`;
     
-    prompt += `\n\nIMPORTANT: When you need to use a tool, output it in this exact JSON format on its own line:
-{"tool": "tool_name", "args": {"param1": "value1", "param2": "value2"}}
+    // CRITICAL: Provide EXACT JSON structures for ALL tools to ensure parser understands
+    prompt += `\n\n⚠️ CRITICAL TOOL USAGE INSTRUCTIONS ⚠️
+Output tools as EXACT JSON on a single line. Here are ALL available tool formats:
 
-For example:
-{"tool": "read_file", "args": {"filename": "example.md"}}
+FILE OPERATIONS (use these exact structures):
+• Create file: {"tool": "write_file", "args": {"filename": "name.ext", "content": "file content here"}}
+• Read file: {"tool": "read_file", "args": {"filename": "name.ext"}}  
+• Edit file: {"tool": "edit_file", "args": {"filename": "name.ext", "old_text": "text to find", "new_text": "replacement"}}
+• List files: {"tool": "list_files", "args": {"directory": "."}}
+• Delete file: {"tool": "delete_file", "args": {"filename": "name.ext", "force": false}}
+• Append to file: {"tool": "update_file", "args": {"filename": "name.ext", "content": "text to add", "mode": "append"}}
+• Check exists: {"tool": "file_exists", "args": {"filename": "name.ext"}}
 
-Be helpful, precise, and use tools when available. Provide real results, not generic responses.`;
+BASH/SYSTEM:
+• Run command: {"tool": "execute_bash", "args": {"command": "ls -la"}}
+
+GIT OPERATIONS:
+• Status: {"tool": "git_status", "args": {}}
+• Commit: {"tool": "git_commit", "args": {"message": "commit message"}}
+• Diff: {"tool": "git_diff", "args": {"cached": false}}
+• Push: {"tool": "git_push", "args": {"branch": "main"}}
+• Pull: {"tool": "git_pull", "args": {}}
+
+SEARCH:
+• Web search: {"tool": "web_search", "args": {"query": "search terms"}}
+
+ABSOLUTE REQUIREMENTS:
+✅ Output COMPLETE JSON - never partial like {"tool": "x", "args": }
+✅ Use ACTUAL values, not placeholders
+✅ One JSON per line, no explanations around it
+✅ The filename/content must be EXACTLY what user wants
+✅ Empty args still need {} like {"tool": "git_status", "args": {}}
+
+❌ NEVER output incomplete JSON
+❌ NEVER use placeholder values
+❌ NEVER explain the JSON before/after outputting it`;
     
     return prompt;
   }

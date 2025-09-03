@@ -32,7 +32,19 @@ class JsonToolParser {
       if (jsonMatches) {
         for (const jsonStr of jsonMatches) {
           try {
-            const parsed = JSON.parse(jsonStr);
+            // Clean up malformed JSON (handle trailing commas, incomplete objects)
+            let cleanJson = jsonStr
+              .replace(/,\s*}/, '}')  // Remove trailing commas
+              .replace(/,\s*$/, '');   // Remove trailing commas at end
+            
+            // Check for incomplete JSON like {"tool": "write_file", "args": }
+            if (cleanJson.match(/["']args["']\s*:\s*}/) || cleanJson.match(/["']args["']\s*:\s*$/)) {
+              // Skip malformed JSON with empty args
+              console.error('Skipping malformed JSON with empty args:', cleanJson);
+              continue;
+            }
+            
+            const parsed = JSON.parse(cleanJson);
             
             // Convert to standard tool call format
             const toolCall = this.convertToToolCall(parsed);
@@ -40,7 +52,10 @@ class JsonToolParser {
               toolCalls.push(toolCall);
             }
           } catch (e) {
-            // Individual JSON parse failed, continue
+            // Individual JSON parse failed, log for debugging
+            if (process.env.DEBUG_TOOLS) {
+              console.error('Failed to parse JSON:', jsonStr, e.message);
+            }
           }
         }
       }
