@@ -13,6 +13,8 @@ const figlet = require('figlet');
 const OpenAI = require('openai').default;
 const fs = require('fs').promises;
 const path = require('path');
+const marked = require('marked');
+const TerminalRenderer = require('marked-terminal');
 const OrionToolRegistry = require('./src/tools/orion-tool-registry');
 const JsonToolParser = require('./src/tools/json-tool-parser');
 const PermissionManager = require('./src/permissions/permission-manager');
@@ -78,6 +80,31 @@ class OrionCLI {
     this.config = this.loadConfig();
     this.client = this.createClient();
     this.toolRegistry = new OrionToolRegistry();
+    
+    // Setup markdown renderer
+    marked.setOptions({
+      renderer: new TerminalRenderer({
+        showSectionPrefix: false,
+        width: 80,
+        reflowText: true,
+        tab: 2,
+        code: chalk.cyan,
+        blockquote: chalk.gray.italic,
+        html: chalk.gray,
+        heading: chalk.green.bold,
+        firstHeading: chalk.magenta.bold,
+        hr: chalk.gray,
+        listitem: chalk.gray,
+        list: (body) => body,
+        paragraph: chalk.white,
+        strong: chalk.bold,
+        em: chalk.italic,
+        codespan: chalk.cyan,
+        del: chalk.dim.gray.strikethrough,
+        link: chalk.blue.underline,
+        href: chalk.blue.underline
+      })
+    });
     
     // Rendering control
     this.renderMode = 'smart'; // 'smart' or 'full'
@@ -187,9 +214,6 @@ class OrionCLI {
   }
 
   async start() {
-    // Enter alternate screen buffer (prevents scroll issues)
-    process.stdout.write('\x1B[?1049h');
-    
     // Beautiful splash screen
     console.clear();
     this.showSplashScreen();
@@ -198,7 +222,10 @@ class OrionCLI {
     
     this.setupTerminal();
     this.setupInput();
-    this.render(true); // Force full render
+    
+    // Initial render with clear
+    this.renderMode = 'initial';
+    this.render();
     
     // Welcome message
     this.addMessage('system', `Welcome to OrionCLI! Type ${colors.primary('/help')} for commands or start chatting.`);
@@ -233,7 +260,6 @@ class OrionCLI {
     // Cleanup on exit
     process.on('exit', () => {
       process.stdout.write('\x1B[?25h'); // Show cursor
-      process.stdout.write('\x1B[?1049l'); // Exit alternate screen buffer
       if (process.stdin.isTTY) {
         process.stdin.setRawMode(false);
       }
@@ -371,10 +397,19 @@ class OrionCLI {
   }
   
   _performRender() {
+    this.lastRenderTime = Date.now();
     const output = [];
     
-    // Clear and reset
-    output.push('\x1B[2J\x1B[H');
+    // Only clear screen on initial render or when explicitly requested
+    if (this.renderMode === 'initial' || this.renderMode === 'full') {
+      output.push('\x1B[2J\x1B[H'); // Clear screen and home cursor
+      this.renderMode = 'update'; // Switch to update mode
+    } else {
+      // For updates, just move cursor home
+      output.push('\x1B[H');
+      // Clear to end of screen to remove old content
+      output.push('\x1B[J');
+    }
     
     // Clean top border
     output.push(colors.dim('─'.repeat(this.terminalWidth)));
@@ -570,7 +605,31 @@ class OrionCLI {
         break;
     }
     
-    this.messages.push(prefix + color(content));
+    // Render markdown for assistant messages
+    let formattedContent = content;
+    if (type === 'assistant' && content.includes('**') || content.includes('##') || content.includes('```')) {
+      try {
+        // Render markdown (marked-terminal handles the formatting)
+        formattedContent = marked(content).trim();
+      } catch (e) {
+        // Fallback to plain text if markdown fails
+        formattedContent = content;
+      }
+    } else {
+      formattedContent = color(content);
+    }
+    
+    const formattedMessage = prefix + formattedContent;
+    this.messages.push(formattedMessage);
+    
+    // In append mode, directly output the message
+    if (this.renderMode === 'append') {
+      // Clear current line and print message
+      process.stdout.write('\x1B[2K\r'); // Clear line
+      console.log(formattedMessage); // Print message
+      // Redraw input line
+      this.renderInputLine();
+    }
     
     // Limit history
     if (this.messages.length > 500) {
@@ -1657,10 +1716,7 @@ IMPORTANT: Always use the RIGHT tool for the task. Read files when asked ABOUT t
   }
 
   exit() {
-    // Exit alternate screen buffer first
-    process.stdout.write('\x1B[?1049l');
     process.stdout.write('\x1B[?25h'); // Show cursor
-    
     console.clear();
     console.log(gradient(['#667eea', '#764ba2', '#f093fb'])(ORION_ASCII));
     console.log(colors.primary.bold('\n        Thank you for using OrionCLI! 👋\n'));
