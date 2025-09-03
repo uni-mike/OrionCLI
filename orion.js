@@ -14,6 +14,9 @@ const OpenAI = require('openai').default;
 const fs = require('fs').promises;
 const path = require('path');
 const OrionToolRegistry = require('./src/tools/orion-tool-registry');
+const TaskUnderstanding = require('./src/intelligence/task-understanding');
+const SmartOrchestration = require('./src/intelligence/smart-orchestration');
+const ProjectAwareness = require('./src/intelligence/project-awareness');
 const { exec } = require('child_process');
 const { promisify } = require('util');
 const execAsync = promisify(exec);
@@ -71,6 +74,12 @@ class OrionCLI {
     this.config = this.loadConfig();
     this.client = this.createClient();
     this.toolRegistry = new OrionToolRegistry();
+    
+    // Intelligence systems
+    this.taskUnderstanding = new TaskUnderstanding();
+    this.orchestration = new SmartOrchestration();
+    this.projectAwareness = new ProjectAwareness();
+    
     this.activeFile = null;
     this.autoEdit = false;
     this.isProcessing = false;
@@ -758,8 +767,18 @@ class OrionCLI {
   async processWithAI(input) {
     this.isProcessing = true;
     
-    // Smart task classification and tool detection
-    const taskInfo = this.analyzeTask(input);
+    // Use intelligent task understanding system
+    const intentAnalysis = await this.taskUnderstanding.analyzeIntent(input);
+    
+    // Fallback to basic analysis if needed
+    const taskInfo = intentAnalysis.primaryIntent ? 
+      {
+        type: intentAnalysis.primaryIntent,
+        needsTools: intentAnalysis.suggestedTools && intentAnalysis.suggestedTools.length > 0,
+        tools: intentAnalysis.suggestedTools || [],
+        priority: intentAnalysis.confidence > 0.8 ? 'high' : intentAnalysis.confidence > 0.5 ? 'medium' : 'low'
+      } : 
+      this.analyzeTask(input);
     const optimalModel = this.selectModelForTask(input);
     let usingClient = this.client;
     let usingConfig = this.config;
@@ -780,13 +799,34 @@ class OrionCLI {
       this.render();
     }
     
-    // Show thinking indicator only
-    this.addMessage('system', colors.info('💭 Thinking...'));
+    // Show smart suggestions if available
+    if (intentAnalysis && intentAnalysis.suggestions && intentAnalysis.suggestions.length > 0) {
+      this.addMessage('system', colors.info('💡 ' + intentAnalysis.suggestions[0]));
+      this.render();
+    }
+    
+    // Show thinking indicator with confidence
+    const confidenceText = intentAnalysis && intentAnalysis.confidence > 0.8 ? ' (high confidence)' : 
+                           intentAnalysis && intentAnalysis.confidence > 0.5 ? ' (medium confidence)' : '';
+    this.addMessage('system', colors.info(`💭 Thinking${confidenceText}...`));
     this.render();
     
     try {
-      // Build context info
+      // Build enhanced context with intelligence
       const contextInfo = this.buildContext(input, taskInfo);
+      if (intentAnalysis && intentAnalysis.context) {
+        Object.assign(contextInfo, intentAnalysis.context);
+      }
+      
+      // Create execution plan for complex tasks
+      let executionPlan = null;
+      if (intentAnalysis && intentAnalysis.suggestedTools && intentAnalysis.suggestedTools.length > 1) {
+        executionPlan = await this.orchestration.planExecution(input, contextInfo);
+        if (executionPlan.workflow) {
+          this.addMessage('system', colors.info(`📋 Using ${executionPlan.workflow} workflow`));
+          this.render();
+        }
+      }
       
       // Add user message to conversation history
       this.conversationHistory.push({
