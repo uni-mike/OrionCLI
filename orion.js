@@ -388,14 +388,25 @@ class OrionCLI {
       }
     }
     
-    // Create content
-    const content = displayLines.join('\n') || colors.dim('Ask me anything...');
+    // Create content and pad to full width (restore the smart shit!)
+    let content = displayLines.join('\n') || colors.dim('Ask me anything...');
+    
+    // Ensure content is padded to full width - CRITICAL for full terminal width
+    const boxWidth = this.terminalWidth - 4; // Account for border and padding
+    const contentLines = content.split('\n');
+    const paddedLines = contentLines.map(line => {
+      // Strip ANSI colors to get real length, then pad
+      const cleanLine = line.replace(/\x1B\[[0-9;]*m/g, '');
+      const padding = Math.max(0, boxWidth - cleanLine.length);
+      return line + ' '.repeat(padding);
+    });
+    content = paddedLines.join('\n');
     
     const inputBox = boxen(content, {
       padding: { left: 1, right: 1, top: 0, bottom: 0 },
       borderStyle: 'round',
       borderColor: this.isProcessing ? 'yellow' : 'magenta',
-      width: this.terminalWidth - 2,
+      width: this.terminalWidth - 2, // Full terminal width - margins
       align: 'left'
     });
     
