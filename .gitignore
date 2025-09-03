@@ -9,6 +9,9 @@ package-lock.json
 !orion.js
 !src/tools/*.js
 !src/intelligence/*.js
+!src/permissions/*.js
+!test-*.js
+!quick-test.sh
 
 # IDE
 .vscode/
