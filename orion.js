@@ -20,6 +20,7 @@ const PermissionPrompt = require('./src/permissions/permission-prompt');
 const TaskUnderstanding = require('./src/intelligence/task-understanding');
 const EnhancedOrchestration = require('./src/intelligence/enhanced-orchestration');
 const ProjectAwareness = require('./src/intelligence/project-awareness');
+const ContextManager = require('./src/intelligence/context-manager');
 const { exec } = require('child_process');
 const { promisify } = require('util');
 const execAsync = promisify(exec);
@@ -82,6 +83,7 @@ class OrionCLI {
     this.taskUnderstanding = new TaskUnderstanding();
     this.orchestration = new EnhancedOrchestration(); // Single orchestration system
     this.projectAwareness = new ProjectAwareness();
+    this.contextManager = new ContextManager();
     
     // Permission system
     this.permissionManager = new PermissionManager();
@@ -667,6 +669,9 @@ class OrionCLI {
         this.showUserMessages = !this.showUserMessages;
         this.addMessage('system', `User message history ${this.showUserMessages ? 'shown' : 'hidden'} in display`);
         break;
+      case 'context':
+        this.showContextStats();
+        break;
       case 'tools':
         this.showTools();
         break;
@@ -709,6 +714,7 @@ class OrionCLI {
     this.addMessage('system', colors.success('/file <path>') + '  - Set active file');
     this.addMessage('system', colors.success('/auto') + '        - Auto-edit toggle');
     this.addMessage('system', colors.success('/history') + '     - Toggle user prompts display');
+    this.addMessage('system', colors.success('/context') + '     - Show context & token stats');
     this.addMessage('system', colors.success('/tools') + '       - Show 54+ tools');
     this.addMessage('system', colors.success('/permissions') + '  - Manage permissions');
     this.addMessage('system', colors.success('/about') + '       - About OrionCLI');
@@ -772,6 +778,57 @@ class OrionCLI {
     this.addMessage('system', colors.dim('Permissions are saved in ~/.orion/'));
   }
 
+  showContextStats() {
+    const stats = this.contextManager.getStats();
+    const contextSize = this.contextManager.countMessageTokens(this.conversationHistory);
+    const remaining = this.contextManager.getRemainingSpace(contextSize, this.config.model);
+    
+    this.addMessage('system', colors.primary.bold('📊 Context Management Stats'));
+    this.addMessage('system', colors.dim('─'.repeat(40)));
+    
+    // Current usage
+    this.addMessage('system', colors.info('Current Context:'));
+    this.addMessage('system', `  Messages: ${this.conversationHistory.length}`);
+    this.addMessage('system', `  Tokens: ${contextSize.toLocaleString()} / ${remaining.limit.toLocaleString()}`);
+    this.addMessage('system', `  Usage: ${remaining.percentage}% ${this.getUsageBar(remaining.percentage)}`);
+    this.addMessage('system', `  Status: ${
+      remaining.status === 'good' ? colors.success(remaining.status) :
+      remaining.status === 'moderate' ? colors.warning(remaining.status) :
+      colors.error(remaining.status)
+    }`);
+    
+    // Compaction stats
+    this.addMessage('system', '');
+    this.addMessage('system', colors.info('Compaction Settings:'));
+    this.addMessage('system', `  Target before compact: ${(stats.targets.maxContext / 1000).toFixed(0)}K tokens`);
+    this.addMessage('system', `  Target after compact: ${(stats.targets.compactTarget / 1000).toFixed(0)}K tokens`);
+    this.addMessage('system', `  Compactions done: ${stats.compactionCount}`);
+    
+    // Model limits
+    this.addMessage('system', '');
+    this.addMessage('system', colors.info('Model Context Limits:'));
+    Object.entries(stats.modelLimits).forEach(([model, limit]) => {
+      const isCurrent = model === this.config.model;
+      const marker = isCurrent ? colors.success('▸') : ' ';
+      this.addMessage('system', `  ${marker} ${model}: ${(limit / 1000).toFixed(0)}K tokens`);
+    });
+    
+    this.addMessage('system', '');
+    this.addMessage('system', colors.dim('Smart context preserves key info during compaction'));
+  }
+  
+  getUsageBar(percentage) {
+    const width = 20;
+    const filled = Math.floor(percentage / 100 * width);
+    const empty = width - filled;
+    
+    let color = colors.success;
+    if (percentage > 80) color = colors.error;
+    else if (percentage > 50) color = colors.warning;
+    
+    return color('█'.repeat(filled)) + colors.dim('░'.repeat(empty));
+  }
+  
   showTools() {
     this.addMessage('system', colors.primary.bold('Available Tools:'));
     this.addMessage('system', '');
@@ -961,17 +1018,34 @@ class OrionCLI {
         content: input
       });
       
+      // Smart context management - handles up to 1M tokens then compacts
+      this.conversationHistory = await this.contextManager.manageContext(
+        this.conversationHistory, 
+        usingConfig.model
+      );
+      
+      // Get context statistics
+      const contextStats = this.contextManager.getRemainingSpace(
+        this.contextManager.countMessageTokens(this.conversationHistory),
+        usingConfig.model
+      );
+      
+      // Show context status if getting full
+      if (contextStats.status === 'critical') {
+        this.addMessage('system', colors.warning(`⚠️ Context ${contextStats.percentage}% full - may compact soon`));
+      }
+      
       // Enhanced system prompt with tool awareness  
       const systemPrompt = this.buildSystemPrompt(taskInfo, contextInfo);
       
-      // Build messages array starting with system prompt
+      // Build messages array with smart context
       const messages = [
         {
           role: 'system',
           content: systemPrompt
         },
-        // Add conversation history (keep last 40 messages to manage context)
-        ...this.conversationHistory.slice(-40)
+        // Use intelligently managed conversation history
+        ...this.conversationHistory
       ];
 
       // Build completion params based on model capabilities
