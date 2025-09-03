@@ -95,6 +95,7 @@ class OrionCLI {
     this.activeFile = null;
     this.autoEdit = false;
     this.isProcessing = false;
+    this.showUserMessages = false; // Hide user messages by default to reduce spam
     this.terminalWidth = process.stdout.columns || 80;
     this.terminalHeight = process.stdout.rows || 30;
     this.lastRender = '';
@@ -349,7 +350,13 @@ class OrionCLI {
     const reservedLines = 10; // Status, input, help
     const messageAreaHeight = Math.max(5, this.terminalHeight - reservedLines);
     
-    const visibleMessages = this.messages.slice(-messageAreaHeight);
+    // Filter out user messages to reduce spam - user input is already shown in the input box
+    const filteredMessages = this.showUserMessages ? this.messages : this.messages.filter(msg => {
+      // Keep all non-user messages
+      return !msg.startsWith(colors.success('▸ You: '));
+    });
+    
+    const visibleMessages = filteredMessages.slice(-messageAreaHeight);
     const emptyLines = messageAreaHeight - visibleMessages.length;
     
     // Fill empty space at top
@@ -656,6 +663,10 @@ class OrionCLI {
       case 'auto':
         this.toggleAutoEdit();
         break;
+      case 'history':
+        this.showUserMessages = !this.showUserMessages;
+        this.addMessage('system', `User message history ${this.showUserMessages ? 'shown' : 'hidden'} in display`);
+        break;
       case 'tools':
         this.showTools();
         break;
@@ -697,6 +708,7 @@ class OrionCLI {
     this.addMessage('system', colors.success('/model <name>') + ' - Switch model');
     this.addMessage('system', colors.success('/file <path>') + '  - Set active file');
     this.addMessage('system', colors.success('/auto') + '        - Auto-edit toggle');
+    this.addMessage('system', colors.success('/history') + '     - Toggle user prompts display');
     this.addMessage('system', colors.success('/tools') + '       - Show 54+ tools');
     this.addMessage('system', colors.success('/permissions') + '  - Manage permissions');
     this.addMessage('system', colors.success('/about') + '       - About OrionCLI');
