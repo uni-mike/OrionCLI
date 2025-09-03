@@ -494,18 +494,9 @@ class OrionCLI {
   }
 
   toggleAutoEdit() {
-    // Prevent spam by debouncing toggle
-    const now = Date.now();
-    if (this.lastToggleTime && now - this.lastToggleTime < 500) {
-      return; // Ignore if toggled within last 500ms
-    }
-    this.lastToggleTime = now;
-    
     this.autoEdit = !this.autoEdit;
-    // Only show message if not currently processing to avoid spam
-    if (!this.isProcessing) {
-      this.addMessage('system', colors.info(`${this.autoEdit ? '▶ Auto-edit ON' : '⏸ Auto-edit OFF'}`));
-    }
+    // REMOVED: Toggle messages to stop spam completely
+    // The status is already visible in the status bar, no need for chat messages
     this.render();
   }
 
