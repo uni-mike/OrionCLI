@@ -1178,11 +1178,16 @@ class OrionCLI {
         const parsed = JsonToolParser.processResponse(response);
         
         // Debug logging
-        if (process.env.DEBUG_TOOLS && parsed.hasTools) {
-          console.log(colors.dim(`🔍 Found ${parsed.toolCalls.length} JSON tool calls`));
-          parsed.toolCalls.forEach(tc => {
-            console.log(colors.dim(`  → ${tc.function.name}`));
-          });
+        if (process.env.DEBUG_TOOLS) {
+          console.log(colors.dim(`🔍 Parsing response for JSON tools...`));
+          console.log(colors.dim(`  Response length: ${response.length}`));
+          console.log(colors.dim(`  Has tools: ${parsed.hasTools}`));
+          console.log(colors.dim(`  Tool calls found: ${parsed.toolCalls.length}`));
+          if (parsed.hasTools) {
+            parsed.toolCalls.forEach(tc => {
+              console.log(colors.dim(`  → ${tc.function.name}`));
+            });
+          }
         }
         
         // If JSON tools were found, execute them
@@ -1217,8 +1222,18 @@ class OrionCLI {
           //   }
           // }
         } else if (response) {
-          // No JSON tools, show response normally as single message
-          this.addMessage('assistant', response);
+          // No JSON tools found - but check if response IS just JSON (shouldn't show it)
+          // Skip showing response if it looks like a failed tool JSON
+          const looksLikeJson = response.trim().startsWith('{') && response.includes('"tool"');
+          if (!looksLikeJson) {
+            // Only show non-JSON responses
+            this.addMessage('assistant', response);
+          } else {
+            // Log that we're skipping JSON that wasn't parsed
+            if (process.env.DEBUG_TOOLS) {
+              console.log(colors.warning('⚠️ Skipping unparsed JSON response'));
+            }
+          }
         }
         
         // Add assistant response to conversation history
