@@ -350,7 +350,8 @@ class OrionCLI {
       padding: { left: 1, right: 1, top: 0, bottom: 0 },
       borderStyle: 'round',
       borderColor: this.isProcessing ? 'yellow' : 'magenta',
-      width: this.terminalWidth - 2
+      width: this.terminalWidth, // FULL WIDTH - remove the -2
+      fullWidth: true
     });
     
     let output = inputBox + '\n';
@@ -372,27 +373,28 @@ class OrionCLI {
   }
 
   positionCursor() {
-    // CRITICAL: Cursor positioning logic - TESTED AND VERIFIED!
+    // CRITICAL: CURSOR STILL WRONG! From screenshot - cursor is outside box to the left!
     // 
-    // ACTUAL TEST RESULTS from cursor-test.js:
-    // Line 24 = Input box content │ Type your message... │
-    // 
-    // Layout confirmed:
-    // - Top border: 1 line
-    // - Messages: messageAreaHeight lines  
-    // - Status: 1 line
-    // - Input box top: 1 line    ╭──╮
-    // - Input box content: 1 line │ text │  <-- CURSOR HERE (line 24 in test)
-    // - Input box bottom: 1 line  ╰──╯
-    // - Help text: 1 line
+    // ISSUE 1: Line calculation might be wrong
+    // ISSUE 2: Column calculation is definitely wrong - cursor way to the left
     //
-    // Calculation: 1 + messageAreaHeight + 1 + 1 + 1 = messageAreaHeight + 4
+    // Let's use simple terminal positioning based on what I see in screenshot:
+    // - Input box is near bottom of screen
+    // - Cursor needs to be INSIDE the rounded border box
+    // - Column should be: left border (1) + padding (1) + cursor position
     const reservedLines = 10;
     const messageAreaHeight = Math.max(5, this.terminalHeight - reservedLines);
-    const inputBoxContentLine = messageAreaHeight + 4; // Simplified: messages + border + status + input_top + input_content
-    const cursorCol = this.cursorPosition + 3; // Border │ + space + left_padding
+    const inputBoxContentLine = messageAreaHeight + 4;
     
-    process.stdout.write(`\x1B[${inputBoxContentLine};${cursorCol}H`);
+    // FIXED COLUMN CALCULATION: ╭─ (1) + space (1) + left_padding (1) + cursor_position  
+    const cursorCol = 3 + this.cursorPosition; // Start at column 3, then add cursor position
+    
+    // DEBUG: Let's try a fixed position first to see if it works
+    // Using terminalHeight - 4 for line (4 lines from bottom)
+    const debugLine = this.terminalHeight - 4;
+    const debugCol = 3 + this.cursorPosition;
+    
+    process.stdout.write(`\x1B[${debugLine};${debugCol}H`);
     process.stdout.write('\x1B[?25h');
   }
 
