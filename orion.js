@@ -394,28 +394,26 @@ class OrionCLI {
   }
 
   positionCursor() {
-    // CRITICAL: CURSOR STILL WRONG! From screenshot - cursor is outside box to the left!
-    // 
-    // ISSUE 1: Line calculation might be wrong
-    // ISSUE 2: Column calculation is definitely wrong - cursor way to the left
-    //
-    // Let's use simple terminal positioning based on what I see in screenshot:
-    // - Input box is near bottom of screen
-    // - Cursor needs to be INSIDE the rounded border box
-    // - Column should be: left border (1) + padding (1) + cursor position
+    // Calculate cursor position for multiline input
+    const textBeforeCursor = this.inputBuffer.substring(0, this.cursorPosition);
+    const lines = textBeforeCursor.split('\n');
+    
+    // Current line index (0-based)
+    const currentLineIndex = lines.length - 1;
+    // Column position within current line  
+    const columnInLine = lines[currentLineIndex].length;
+    
+    // Calculate base position of input box
     const reservedLines = 10;
     const messageAreaHeight = Math.max(5, this.terminalHeight - reservedLines);
-    const inputBoxContentLine = messageAreaHeight + 4;
+    const inputBoxStartLine = messageAreaHeight + 4; // First line inside input box
     
-    // FIXED COLUMN CALCULATION: ╭─ (1) + space (1) + left_padding (1) + cursor_position  
-    const cursorCol = 3 + this.cursorPosition; // Start at column 3, then add cursor position
+    // Cursor line = input box start + current line index
+    const cursorLine = inputBoxStartLine + currentLineIndex;
+    // Cursor column = left border + padding + column in line
+    const cursorCol = 3 + columnInLine; // Border + padding + position
     
-    // DEBUG: Let's try a fixed position first to see if it works
-    // Using terminalHeight - 4 for line (4 lines from bottom)
-    const debugLine = this.terminalHeight - 4;
-    const debugCol = 3 + this.cursorPosition;
-    
-    process.stdout.write(`\x1B[${debugLine};${debugCol}H`);
+    process.stdout.write(`\x1B[${cursorLine};${cursorCol}H`);
     process.stdout.write('\x1B[?25h');
   }
 
