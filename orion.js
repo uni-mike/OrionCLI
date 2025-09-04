@@ -1476,6 +1476,15 @@ TOOL OUTPUT RULES:
 • JSON must be complete and valid: {"tool": "write_file", "args": {"filename": "test.txt", "content": "content here"}}
 • Do NOT output text before or after the JSON
 • The system will confirm success automatically - you don't need to
+
+MULTI-TOOL EXECUTION:
+• For complex tasks requiring multiple tools, execute them ALL in sequence
+• Don't stop after one tool - continue with the next steps
+• Output each tool JSON on a separate line
+• Example for "read package.json and create a summary":
+  {"tool": "read_file", "args": {"filename": "package.json"}}
+  {"tool": "write_file", "args": {"filename": "summary.md", "content": "Summary content here..."}}
+• Keep executing tools until the ENTIRE task is complete
     
 Current Context:
 - Working Directory: ${contextInfo.workingDir}

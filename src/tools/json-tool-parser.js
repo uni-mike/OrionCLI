@@ -25,7 +25,29 @@ class JsonToolParser {
     const toolCalls = [];
     
     try {
-      // FIRST: Try to parse the entire response as JSON (best case - AI outputs only JSON)
+      // Check for multiple JSON objects on separate lines
+      const lines = text.split('\n');
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith('{') && trimmed.includes('"tool"')) {
+          try {
+            const parsed = JSON.parse(trimmed);
+            const toolCall = this.convertToToolCall(parsed);
+            if (toolCall) {
+              toolCalls.push(toolCall);
+            }
+          } catch (e) {
+            // Skip malformed JSON lines
+          }
+        }
+      }
+      
+      // If we found tools from line-by-line parsing, return them
+      if (toolCalls.length > 0) {
+        return toolCalls;
+      }
+      
+      // FALLBACK: Try to parse the entire response as single JSON
       const trimmed = text.trim();
       if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
         try {
@@ -33,7 +55,7 @@ class JsonToolParser {
           const toolCall = this.convertToToolCall(parsed);
           if (toolCall) {
             toolCalls.push(toolCall);
-            return toolCalls;  // Return immediately if successful
+            return toolCalls;
           }
         } catch (e) {
           // Not valid JSON, continue to regex extraction
@@ -87,6 +109,14 @@ class JsonToolParser {
             const toolCall = this.convertToToolCall(parsed);
             if (toolCall) {
               toolCalls.push(toolCall);
+              // Don't return yet - look for more JSON objects
+              // Check if there's more text after this JSON
+              const remainingText = text.substring(jsonEnd + 1);
+              if (remainingText.includes('{') && remainingText.includes('"tool"')) {
+                // Recursively extract more tools
+                const moreCalls = this.extractToolCalls(remainingText);
+                toolCalls.push(...moreCalls);
+              }
               return toolCalls;
             }
           } catch (e) {
