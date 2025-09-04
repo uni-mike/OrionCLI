@@ -756,7 +756,7 @@ class OrionCLI {
     if (type === 'assistant' && (content.includes('**') || content.includes('##') || content.includes('```'))) {
       try {
         // Render markdown (marked-terminal handles the formatting)
-        formattedContent = marked(content).trim();
+        formattedContent = marked.parse(content).trim();
         
         // Debug: Log markdown processing
         if (process.env.DEBUG_MARKDOWN) {
