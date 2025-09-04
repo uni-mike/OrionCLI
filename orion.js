@@ -1877,6 +1877,11 @@ FOR CONVERSATIONAL QUERIES (greetings, questions, general chat):
 • Respond naturally and helpfully without tools
 • Be friendly and concise
 • Offer assistance when appropriate
+• Use proper markdown formatting for better readability:
+  - **bold text** for emphasis
+  - *italic text* for subtle emphasis
+  - ```language blocks for code examples
+  - `inline code` for commands/variables
 
 FOR ACTION REQUESTS:
 • "Create a mermaid diagram" → Create flowchart.md with example diagram NOW
