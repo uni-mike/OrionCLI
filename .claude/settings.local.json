@@ -40,7 +40,8 @@
       "Bash(./run-test.sh)",
       "Bash(DEBUG_TOOLS=1 node test-simple.js)",
       "Bash(DEBUG_TOOLS=1 node test-fixed.js)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(DEBUG_TOOLS=1 timeout 8 node test-mega-enhanced.js)"
     ],
     "deny": [],
     "ask": []

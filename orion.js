@@ -1107,6 +1107,10 @@ class OrionCLI {
       // Check if this needs adaptive orchestration (mega tasks)
       const needsAdaptive = this.adaptiveOrchestrator.needsOrchestration(input);
       
+      if (process.env.DEBUG_TOOLS) {
+        console.log(colors.dim(`\n🔍 Orchestration check: ${needsAdaptive ? 'YES - Mega task!' : 'NO - Regular task'}`));
+      }
+      
       if (needsAdaptive) {
         // Use adaptive orchestrator for complex mega tasks
         this.addMessage('system', colors.info('🎯 Mega task detected - using adaptive orchestration'));

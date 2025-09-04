@@ -115,6 +115,8 @@ class AdaptiveOrchestrator {
   async createStrategy(input, client) {
     console.log(colors.dim('🧠 o3: Analyzing request and creating strategy...'));
     
+    try {
+    
     const strategyPrompt = `Analyze this request and create an execution strategy.
 
 Request: ${input}
@@ -161,6 +163,11 @@ Output a JSON strategy:
       }
     } catch (e) {
       console.log(colors.warning('⚠️ Could not parse strategy'));
+    }
+    
+    } catch (error) {
+      console.log(colors.error(`❌ Strategy creation failed: ${error.message}`));
+      return null;
     }
     
     return null;
@@ -394,6 +401,8 @@ Suggest recovery strategy:
   
   // Main orchestration loop
   async orchestrate(input, client, systemPrompt, onToolExecution) {
+    console.log(colors.info('🚀 Starting adaptive orchestration...'));
+    
     // Step 1: Create strategy
     const strategy = await this.createStrategy(input, client);
     if (!strategy) {
