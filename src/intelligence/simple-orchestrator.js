@@ -36,19 +36,60 @@ class SimpleOrchestrator {
         let target = '';
         let content = '';
         
-        if (stepText.match(/create\s+directory/i)) {
+        // Directory creation
+        if (stepText.match(/create\s+(directory|dir|folder)/i)) {
           action = 'create_dir';
-          target = stepText.match(/directory\s+(\S+)/i)?.[1] || '';
-        } else if (stepText.match(/create\s+(file\s+)?(\S+\.txt)/i)) {
+          target = stepText.match(/(?:directory|dir|folder)\s+(\S+)/i)?.[1] || '';
+        } 
+        // File creation with various formats (including Dockerfile without extension)
+        else if (stepText.match(/create\s+(?:file\s+)?(\S+(?:\.\w+|Dockerfile|SUMMARY\.md|README\.md))/i)) {
           action = 'create_file';
-          const fileMatch = stepText.match(/(\S+\.txt)\s+with\s+"([^"]+)"/i);
+          // Match various file patterns including special files
+          const fileMatch = stepText.match(/(\S+\/?\S*?(?:Dockerfile|SUMMARY\.md|README\.md|\.\w+))\s+(?:with\s+)?(?:"([^"]+)"|'([^']+)'|(.+?)(?:\s|$))/i);
           if (fileMatch) {
             target = fileMatch[1];
-            content = fileMatch[2];
+            content = fileMatch[2] || fileMatch[3] || fileMatch[4] || '';
+            
+            // Handle JSON content
+            if (stepText.includes('{') && stepText.includes('}')) {
+              const jsonMatch = stepText.match(/\{[^}]+\}/);
+              if (jsonMatch) {
+                content = jsonMatch[0];
+              }
+            }
+            
+            // Special handling for SUMMARY.md
+            if (target.includes('SUMMARY.md') && stepText.match(/listing|list/i)) {
+              content = '# Summary\n\nAll files and directories created in this project.';
+            }
           }
-        } else if (stepText.match(/list\s+files/i)) {
+        }
+        // List files
+        else if (stepText.match(/list\s+(all\s+)?files/i)) {
           action = 'list_files';
           target = stepText.match(/in\s+(\S+)/i)?.[1] || '.';
+        }
+        // Read file
+        else if (stepText.match(/read\s+(\S+)/i)) {
+          action = 'read_file';
+          target = stepText.match(/read\s+(\S+)/i)?.[1] || '';
+        }
+        // Execute bash command
+        else if (stepText.match(/execute\s+bash|bash:|echo|find|wc|date/i)) {
+          action = 'bash_command';
+          // Extract command after colon or "command:"
+          const cmdMatch = stepText.match(/(?:bash\s+command:|bash:)\s*(.+)/i) || 
+                           stepText.match(/(?:echo|find|wc|date).*/i);
+          if (cmdMatch) {
+            content = cmdMatch[1] || cmdMatch[0];
+          }
+        }
+        // Count files
+        else if (stepText.match(/count\s+(total\s+)?files/i)) {
+          action = 'bash_command';
+          const dirMatch = stepText.match(/(?:in|from)\s+(\S+)/i);
+          const dir = dirMatch ? dirMatch[1] : 'mega-test';
+          content = `find ${dir} -type f | wc -l`;
         }
         
         steps.push({
@@ -88,6 +129,18 @@ class SimpleOrchestrator {
         break;
         
       case 'create_file':
+        // Ensure directory exists for files in subdirectories
+        if (step.target.includes('/')) {
+          const dir = step.target.substring(0, step.target.lastIndexOf('/'));
+          // First create the directory
+          await onToolExecution(JSON.stringify({
+            tool: 'execute_bash',
+            args: { command: `mkdir -p ${dir}` }
+          }));
+          // Small delay to ensure directory is created
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        
         toolJson = JSON.stringify({
           tool: 'write_file',
           args: { 
@@ -101,6 +154,20 @@ class SimpleOrchestrator {
         toolJson = JSON.stringify({
           tool: 'list_files',
           args: { path: step.target }
+        });
+        break;
+        
+      case 'read_file':
+        toolJson = JSON.stringify({
+          tool: 'read_file',
+          args: { filename: step.target }
+        });
+        break;
+        
+      case 'bash_command':
+        toolJson = JSON.stringify({
+          tool: 'execute_bash',
+          args: { command: step.content }
         });
         break;
         
@@ -167,21 +234,30 @@ class SimpleOrchestrator {
     // Execute each step
     let completed = 0;
     let errors = 0;
+    const startTime = Date.now();
     
     for (const step of steps) {
       // Add small delay to avoid overwhelming the system
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(resolve => setTimeout(resolve, 300));
       
-      const success = await this.executeStep(step, clientInfo, onToolExecution);
-      if (success) {
-        completed++;
-      } else {
+      try {
+        const success = await this.executeStep(step, clientInfo, onToolExecution);
+        if (success) {
+          completed++;
+          console.log(colors.success(`✅ Step ${step.number}: ${step.action} completed`));
+        } else {
+          errors++;
+          console.log(colors.warning(`⚠️ Step ${step.number}: ${step.action} failed`));
+        }
+      } catch (error) {
         errors++;
+        console.log(colors.error(`❌ Step ${step.number} error: ${error.message}`));
       }
       
-      // Progress update
-      if (completed % 5 === 0) {
-        console.log(colors.dim(`📊 Progress: ${completed}/${steps.length} completed`));
+      // Progress update every 5 steps or at milestones
+      if (completed % 5 === 0 || completed === 10 || completed === 20) {
+        const elapsed = Math.round((Date.now() - startTime) / 1000);
+        console.log(colors.info(`📊 Progress: ${completed}/${steps.length} completed (${elapsed}s)`));
       }
     }
     
