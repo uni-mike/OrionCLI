@@ -161,7 +161,7 @@ class OrionCLI {
   }
 
   loadConfig() {
-    const model = process.env.MODEL || 'gpt-5-chat';
+    const model = process.env.MODEL || 'deepseek-r1';
     const configs = {
       'gpt-5': {
         endpoint: 'https://mike-mazsz1c6-eastus2.openai.azure.com',
@@ -492,12 +492,12 @@ class OrionCLI {
     
     // Filter out user messages to reduce spam - user input is already shown in the input box
     const filteredMessages = this.showUserMessages ? this.messages : this.messages.filter(msg => {
-      // Handle both string and object messages
+      // Handle new object-based message structure
       if (typeof msg === 'object') {
-        // Keep all object messages (like thinking messages)
-        return true;
+        // Filter out user messages unless explicitly showing them
+        return msg.type !== 'user';
       }
-      // For string messages, filter out user messages
+      // Legacy string message handling - filter out user messages
       return typeof msg === 'string' && !msg.startsWith(colors.success('▸ You: '));
     });
     
@@ -534,16 +534,33 @@ class OrionCLI {
   formatMessage(msg) {
     if (!msg) return '';
     
-    // Handle thinking messages (object with type and content)
-    if (typeof msg === 'object' && msg.type === 'thinking') {
-      return msg.content; // Content is already formatted
+    // Handle new object-based message structure
+    if (typeof msg === 'object') {
+      if (msg.type === 'thinking') {
+        return msg.content; // Content is already formatted
+      }
+      
+      // Standard message objects
+      const displayMessage = (msg.prefix || '') + (msg.content || '');
+      const maxWidth = this.terminalWidth - 4;
+      const lines = displayMessage.split('\n');
+      return lines.map(line => {
+        if (line.length > maxWidth) {
+          // Simple word wrap
+          const wrapped = [];
+          for (let i = 0; i < line.length; i += maxWidth) {
+            wrapped.push(line.substring(i, i + maxWidth));
+          }
+          return wrapped.join('\n');
+        }
+        return line;
+      }).join('\n');
     }
     
-    // Ensure msg is a string
-    msg = String(msg);
-    
+    // Legacy string message handling (fallback)
+    const msgStr = String(msg);
     const maxWidth = this.terminalWidth - 4;
-    const lines = msg.split('\n');
+    const lines = msgStr.split('\n');
     return lines.map(line => {
       if (line.length > maxWidth) {
         // Simple word wrap
@@ -722,6 +739,20 @@ class OrionCLI {
       return;
     }
     
+    // Prevent duplicate messages (check last few messages)
+    const recentMessages = this.messages.slice(-5);
+    const isDuplicate = recentMessages.some(msg => {
+      if (typeof msg === 'object') {
+        return msg.type === type && msg.content === content;
+      } else {
+        return msg.includes(content) && msg.length > 50; // Only check longer content
+      }
+    });
+    
+    if (isDuplicate) {
+      return; // Skip duplicate messages
+    }
+    
     let prefix = '';
     let color = colors.text;
     
@@ -733,9 +764,11 @@ class OrionCLI {
         prefix = this.config.color(`${this.config.icon} Orion: `);
         break;
       case 'thinking':
-        // Special handling for thinking display - no prefix, just show formatted content
+        // Special handling for thinking display - store as object
         this.messages.push({ type, content });
-        this.render();
+        if (!skipRender) {
+          this.render(); // Use throttled render, not direct
+        }
         return;
       case 'system':
         prefix = colors.info('⚡ System: ');
@@ -775,20 +808,24 @@ class OrionCLI {
       formattedContent = color(content);
     }
     
-    const formattedMessage = prefix + formattedContent;
-    this.messages.push(formattedMessage);
+    const messageObj = {
+      type,
+      content: formattedContent,
+      prefix,
+      timestamp: Date.now(),
+      raw: content
+    };
     
-    // Don't try to insert above - just add to message list
-    // The render system will handle display
+    this.messages.push(messageObj);
     
     // Limit history
     if (this.messages.length > 500) {
       this.messages = this.messages.slice(-400);
     }
     
-    // Force immediate render for assistant messages to show responses immediately
-    if (type === 'assistant') {
-      this._performRender();
+    // Use throttled render for all messages to prevent cascading renders
+    if (!skipRender) {
+      this.render();
     }
   }
 
