@@ -1196,18 +1196,31 @@ class OrionCLI {
   }
 
   async switchModel(modelName) {
-    const validModels = ['gpt-5', 'gpt-5-chat', 'gpt-5-mini', 'o3', 'gpt-4o', 'o4-mini'];
+    const validModels = ['gpt-5', 'gpt-5-chat', 'gpt-5-mini', 'o3', 'gpt-4o', 'gpt-4o-mini', 'deepseek-r1', 'o4-mini'];
     
     if (!validModels.includes(modelName)) {
       this.addMessage('error', `Invalid model: ${modelName}`);
+      this.addMessage('system', colors.dim('Valid models: ' + validModels.join(', ')));
       return;
     }
     
+    // Check if required API key exists for the model
     process.env.MODEL = modelName;
-    this.config = this.loadConfig();
+    const newConfig = this.loadConfig();
+    
+    if (!newConfig.key) {
+      this.addMessage('error', `No API key configured for ${modelName}`);
+      this.addMessage('system', colors.dim('Please set the required environment variable in .env'));
+      return;
+    }
+    
+    this.config = newConfig;
     this.client = this.createClient();
     
     this.addMessage('system', `${colors.success('✓')} Switched to ${this.config.color(this.config.icon + ' ' + modelName)}`);
+    if (this.config.description) {
+      this.addMessage('system', colors.dim(this.config.description));
+    }
   }
 
   // Smart model selection
