@@ -3,23 +3,6 @@
     "analyze_structure": {
       "versions": [
         {
-          "version": "1756981138965",
-          "path": "/Users/mike.admon/UNIPATH_PROJECT/OrionCLI/.tool-forge/versions/analyze_structure_v1756981138965.js",
-          "spec": {
-            "toolName": "analyze_structure",
-            "functionality": "Analyzes project directory structure and file statistics",
-            "parameters": [
-              "directory",
-              "depth"
-            ],
-            "returnType": "object",
-            "category": "file_ops"
-          },
-          "created": "2025-09-04T10:18:59.028Z",
-          "testsPassed": true,
-          "notes": "Initial version"
-        },
-        {
           "version": "1756981140031",
           "path": "/Users/mike.admon/UNIPATH_PROJECT/OrionCLI/.tool-forge/versions/analyze_structure_v1756981140031.js",
           "spec": {
@@ -36,9 +19,44 @@
           "created": "2025-09-04T10:19:00.088Z",
           "testsPassed": true,
           "notes": "Parameters changed from [directory, depth] to [directory, depth, includeHidden]; Functionality updated: Enhanced structure analyzer with caching"
+        },
+        {
+          "version": "1757002572221",
+          "path": "/Users/mike.admon/UNIPATH_PROJECT/OrionCLI/.tool-forge/versions/analyze_structure_v1757002572221.js",
+          "spec": {
+            "toolName": "analyze_structure",
+            "functionality": "Analyzes project directory structure and file statistics",
+            "parameters": [
+              "directory",
+              "depth"
+            ],
+            "returnType": "object",
+            "category": "file_ops"
+          },
+          "created": "2025-09-04T16:16:12.304Z",
+          "testsPassed": true,
+          "notes": "Parameters changed from [directory, depth, includeHidden] to [directory, depth]; Functionality updated: Analyzes project directory structure and file statistics"
+        },
+        {
+          "version": "1757002573308",
+          "path": "/Users/mike.admon/UNIPATH_PROJECT/OrionCLI/.tool-forge/versions/analyze_structure_v1757002573308.js",
+          "spec": {
+            "toolName": "analyze_structure",
+            "functionality": "Enhanced structure analyzer with caching",
+            "parameters": [
+              "directory",
+              "depth",
+              "includeHidden"
+            ],
+            "returnType": "object",
+            "category": "file_ops"
+          },
+          "created": "2025-09-04T16:16:13.362Z",
+          "testsPassed": true,
+          "notes": "Parameters changed from [directory, depth] to [directory, depth, includeHidden]; Functionality updated: Enhanced structure analyzer with caching"
         }
       ],
-      "activeVersion": "1756981140031",
+      "activeVersion": "1757002572221",
       "created": "2025-09-04T10:18:59.028Z"
     }
   },
@@ -54,9 +72,28 @@
       "tool": "analyze_structure",
       "version": "1756981140031",
       "timestamp": "2025-09-04T10:19:00.088Z"
+    },
+    {
+      "action": "register",
+      "tool": "analyze_structure",
+      "version": "1757002572221",
+      "timestamp": "2025-09-04T16:16:12.304Z"
+    },
+    {
+      "action": "register",
+      "tool": "analyze_structure",
+      "version": "1757002573308",
+      "timestamp": "2025-09-04T16:16:13.362Z"
+    },
+    {
+      "action": "rollback",
+      "tool": "analyze_structure",
+      "fromVersion": "1757002572221",
+      "toVersion": "1757002572221",
+      "timestamp": "2025-09-04T16:16:14.365Z"
     }
   ],
   "activeVersions": {
-    "analyze_structure": "1756981140031"
+    "analyze_structure": "1757002572221"
   }
 }

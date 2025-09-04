@@ -6,8 +6,9 @@ A beautiful, intelligent command-line interface for Azure OpenAI models with sma
 
 - 🧠 **Intelligent Model Routing**: Auto-selects optimal model based on task analysis
 - 🎨 **Beautiful UI**: Stunning ASCII art, vibrant colors, flicker-free interface
-- ⚡ **6 AI Models**: GPT-5, GPT-5-Chat, GPT-5-Mini, O3, O4-Mini, GPT-4o
+- ⚡ **8 AI Models**: GPT-5 family, O3, O4-Mini, GPT-4o, DeepSeek-R1
 - 🔧 **Modular Tool System**: 8 tool categories with 43+ specialized tools
+- 🤖 **ToolForge System**: Auto-generates tools from natural language
 - 📊 **Smart Status Display**: Comprehensive context awareness
 - 💫 **Professional Experience**: Input at bottom, messages scroll above
 - 🚀 **AI-First Approach**: Let AI combine basic tools for complex tasks
@@ -43,6 +44,8 @@ A beautiful, intelligent command-line interface for Azure OpenAI models with sma
 | O3 | 🧠 | Deep reasoning | Planning, architecture |
 | O4-Mini | 💨 | Ultra fast | Simple queries |
 | GPT-4o | 🎨 | Multimodal | Vision + text tasks |
+| GPT-4o-Mini | 🏃 | Fast GPT-4 | Efficient tasks |
+| DeepSeek-R1 | 🔬 | Advanced reasoning | Analytical tasks |
 
 ## 🚀 Quick Start
 
@@ -99,7 +102,12 @@ The tool system follows an **AI-first philosophy**:
 npm install
 ```
 
-2. **Configure API keys** in `.env`:
+2. **Configure API keys**:
+   - Copy `.env.example` to `.env` and add your keys
+   - For specific models, use:
+     - `.env.4o` - GPT-4o configuration
+     - `.env.mini` - GPT-4o-mini configuration
+     - `.env.deepseek` - DeepSeek-R1 configuration
 ```bash
 ORION_DEFAULT_KEY=your_azure_openai_key
 ORION_O3_KEY=your_o3_endpoint_key
@@ -127,10 +135,23 @@ OrionCLI/
 │   │   ├── database-tools.js       # Database operations
 │   │   ├── conversion-tools.js     # Data conversions
 │   │   └── web-search-tools.js     # Enhanced web search
-│   └── ...          # TypeScript source (legacy)
+│   └── ...          # Additional source modules
+├── docs/            # Documentation
+│   ├── ARCHITECTURE.md  # System architecture
+│   ├── TOOLFORGE.md     # ToolForge documentation
+│   ├── MODELS.md        # Model descriptions
+│   └── TODO.md          # Development roadmap
+├── dist/            # Compiled distribution files
+├── .tool-forge/     # ToolForge system
+│   ├── manifest.json    # Tool registry
+│   ├── sandbox/         # Sandboxed environment
+│   └── versions/        # Tool version history
 ├── package.json     # Dependencies
-├── .env             # API keys (create this)
-├── _ARCHIVE/        # Archived old versions
+├── .env.example     # Example configuration
+├── .env             # API keys (create from .env.example)
+├── .env.4o          # GPT-4o configuration (optional)
+├── .env.mini        # GPT-4o-mini configuration (optional)
+├── .env.deepseek    # DeepSeek configuration (optional)
 └── README.md        # This file
 ```
 

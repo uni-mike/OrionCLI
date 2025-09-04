@@ -3,6 +3,7 @@ node_modules/
 package-lock.json
 
 # Build outputs
+dist/
 *.js
 *.d.ts
 !orion-cli.js
@@ -10,8 +11,6 @@ package-lock.json
 !src/tools/*.js
 !src/intelligence/*.js
 !src/permissions/*.js
-!test-*.js
-!quick-test.sh
 
 # IDE
 .vscode/
@@ -31,6 +30,9 @@ npm-debug.log*
 # Environment
 .env
 .env.local
+.env.4o
+.env.deepseek
+.env.mini
 
 # Temporary files
 tmp/
