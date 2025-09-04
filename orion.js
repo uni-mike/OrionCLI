@@ -839,11 +839,24 @@ class OrionCLI {
     this.addMessage('user', input);
     
     // Process input
+    if (process.env.DEBUG_TOOLS) {
+      console.log(colors.dim(`\n🔍 Input routing check:`));
+      console.log(colors.dim(`   Starts with '/': ${input.startsWith('/')}`));
+      console.log(colors.dim(`   Is direct command: ${this.isDirectCommand(input)}`));
+      console.log(colors.dim(`   First word: "${input.split(' ')[0]}"`));
+    }
+    
     if (input.startsWith('/')) {
       await this.handleCommand(input);
     } else if (this.isDirectCommand(input)) {
+      if (process.env.DEBUG_TOOLS) {
+        console.log(colors.warning('⚠️ Routing to executeCommand instead of AI!'));
+      }
       await this.executeCommand(input);
     } else {
+      if (process.env.DEBUG_TOOLS) {
+        console.log(colors.info('✅ Routing to processWithAI'));
+      }
       await this.processWithAI(input);
     }
     
@@ -1177,11 +1190,17 @@ class OrionCLI {
     
     // Debug: Log when processing starts
     if (process.env.DEBUG_TOOLS) {
-      console.log(colors.dim(`\n🔍 Processing input: "${input}"`));
+      console.log(colors.dim(`\n🔍 Processing input: "${input.slice(0, 100)}..."`));
+      console.log(colors.dim(`   Input length: ${input.length} chars`));
     }
     
     // Check for mega tasks FIRST - they must use SimpleOrchestrator with gpt-5-chat
     const needsOrchestration = this.simpleOrchestrator.needsOrchestration(input);
+    
+    if (process.env.DEBUG_TOOLS) {
+      console.log(colors.dim(`\n🔍 EARLY Orchestration check: ${needsOrchestration ? 'YES - Mega task!' : 'NO - Regular task'}`));
+      console.log(colors.dim(`   Numbered items found: ${(input.match(/\d+\./g) || []).length}`));
+    }
     
     // Use intelligent task understanding system
     const intentAnalysis = await this.taskUnderstanding.analyzeIntent(input);
@@ -1198,6 +1217,10 @@ class OrionCLI {
     
     // Force gpt-5-chat for mega tasks, otherwise use optimal model
     const optimalModel = needsOrchestration ? 'gpt-5-chat' : this.selectModelForTask(input);
+    
+    if (process.env.DEBUG_TOOLS) {
+      console.log(colors.dim(`   Selected model: ${optimalModel} (forced: ${needsOrchestration ? 'YES' : 'NO'})`));
+    }
     let usingClient = this.client;
     let usingConfig = this.config;
     
