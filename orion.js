@@ -1268,6 +1268,9 @@ class OrionCLI {
         this.addMessage('system', colors.info('🎯 Mega task detected - using orchestration'));
         this.render();
         
+        // Set orchestration mode to reduce error noise
+        this.isOrchestrationMode = true;
+        
         // Pass the config so orchestrator can create proper clients
         const orchestrationResult = await this.simpleOrchestrator.orchestrate(
           input,
@@ -1283,6 +1286,9 @@ class OrionCLI {
             }
           }
         );
+        
+        // Reset orchestration mode
+        this.isOrchestrationMode = false;
         
         if (orchestrationResult) {
           if (orchestrationResult.success) {
@@ -1854,8 +1860,10 @@ ABSOLUTE REQUIREMENTS:
           } catch (toolError) {
             retries++;
             if (retries > maxRetries) {
-              // Max retries reached, try to recover
-              this.addMessage('system', colors.warning(`⚠️ Tool failed, attempting smart recovery...`));
+              // Max retries reached, try to recover (suppress message during orchestration)
+              if (!this.isOrchestrationMode) {
+                this.addMessage('system', colors.warning(`⚠️ Tool failed, attempting smart recovery...`));
+              }
               
               // Smart recovery based on error type and tool
               if (toolCall.function.name === 'write_file' || toolCall.function.name === 'create_file') {
@@ -1918,7 +1926,10 @@ ABSOLUTE REQUIREMENTS:
             if (result.output) {
               displayMessage = result.output;
             } else if (result.error) {
-              this.addMessage('error', result.error);
+              // Suppress errors during orchestration for cleaner output
+              if (!this.isOrchestrationMode) {
+                this.addMessage('error', result.error);
+              }
               return;
             } else {
               // Fallback for other objects

@@ -132,7 +132,10 @@ class SimpleOrchestrator {
       return false;
     }
     
-    console.log(colors.dim(`⚙️ Step ${step.number}: ${step.text}`));
+    // Only show step in debug mode to reduce noise
+    if (process.env.DEBUG_TOOLS) {
+      console.log(colors.dim(`⚙️ Step ${step.number}: ${step.text}`));
+    }
     
     // Generate appropriate tool JSON based on action
     let toolJson = '';
@@ -261,14 +264,21 @@ class SimpleOrchestrator {
         const success = await this.executeStep(step, clientInfo, onToolExecution);
         if (success) {
           completed++;
-          console.log(colors.success(`✅ Step ${step.number}: ${step.action} completed`));
+          // Show minimal progress indicator
+          process.stdout.write('.');
         } else {
           errors++;
-          console.log(colors.warning(`⚠️ Step ${step.number}: ${step.action} failed`));
+          // Only show failures in debug mode
+          if (process.env.DEBUG_TOOLS) {
+            console.log(colors.warning(`⚠️ Step ${step.number}: ${step.action} failed`));
+          }
         }
       } catch (error) {
         errors++;
-        console.log(colors.error(`❌ Step ${step.number} error: ${error.message}`));
+        // Only show step errors in debug mode
+        if (process.env.DEBUG_TOOLS) {
+          console.log(colors.error(`❌ Step ${step.number} error: ${error.message}`));
+        }
       }
       
       // Progress update every 5 steps or at milestones
@@ -278,12 +288,11 @@ class SimpleOrchestrator {
       }
     }
     
-    // Final summary
+    // Final summary - clean and concise
     const successRate = completed / steps.length;
-    console.log(colors.dim(`\n📊 Orchestration Complete:`));
-    console.log(colors.dim(`  Completed: ${completed}/${steps.length}`));
-    console.log(colors.dim(`  Errors: ${errors}`));
-    console.log(colors.dim(`  Success Rate: ${Math.round(successRate * 100)}%`));
+    console.log(`\n📊 Completed ${completed}/${steps.length} steps` + 
+                (successRate === 1.0 ? ' successfully!' : 
+                 ` (${Math.round(successRate * 100)}% success rate)`));
     
     return {
       completedSteps: completed,
