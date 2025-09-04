@@ -39,7 +39,8 @@
       "Bash(env)",
       "Bash(./run-test.sh)",
       "Bash(DEBUG_TOOLS=1 node test-simple.js)",
-      "Bash(DEBUG_TOOLS=1 node test-fixed.js)"
+      "Bash(DEBUG_TOOLS=1 node test-fixed.js)",
+      "Bash(grep:*)"
     ],
     "deny": [],
     "ask": []
