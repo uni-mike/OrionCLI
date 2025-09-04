@@ -753,12 +753,22 @@ class OrionCLI {
     
     // Render markdown for assistant messages
     let formattedContent = content;
-    if (type === 'assistant' && content.includes('**') || content.includes('##') || content.includes('```')) {
+    if (type === 'assistant' && (content.includes('**') || content.includes('##') || content.includes('```'))) {
       try {
         // Render markdown (marked-terminal handles the formatting)
         formattedContent = marked(content).trim();
+        
+        // Debug: Log markdown processing
+        if (process.env.DEBUG_MARKDOWN) {
+          console.log(colors.dim('\n🔍 Markdown processed:'));
+          console.log(colors.dim('  Original:', content.substring(0, 100) + '...'));
+          console.log(colors.dim('  Rendered:', formattedContent.substring(0, 100) + '...'));
+        }
       } catch (e) {
         // Fallback to plain text if markdown fails
+        if (process.env.DEBUG_MARKDOWN) {
+          console.log(colors.dim('⚠️ Markdown failed:', e.message));
+        }
         formattedContent = content;
       }
     } else {
