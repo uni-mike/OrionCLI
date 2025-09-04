@@ -147,6 +147,7 @@ class OrionCLI {
     this.autoEdit = true;  // Always enabled - otherwise AI does nothing
     this.isProcessing = false;
     this.showUserMessages = true; // Show user messages in conversation history
+    this.activeModel = null; // Track currently active model
     this.terminalWidth = process.stdout.columns || 80;
     this.terminalHeight = process.stdout.rows || 30;
     this.lastRender = '';
@@ -615,8 +616,10 @@ class OrionCLI {
     // Status and help line - always show current state
     if (!this.isProcessing) {
       // Show model and status info with idle state
+      const displayModel = this.activeModel || this.config.model;
+      const modelConfig = this.loadConfig(displayModel);
       const statusParts = [
-        this.config.color(`${this.config.icon} ${this.config.model.toUpperCase()}`),
+        modelConfig.color(`${modelConfig.icon} ${displayModel.toUpperCase()}`),
         this.autoEdit ? colors.success('▶ Auto-edit ON') : colors.dim('⏸ Auto-edit OFF'),
         this.toolForgeEnabled ? colors.success('🔧 Forge ON') : colors.dim('🔧 Forge OFF'),
         colors.success('⚫ Idle')
@@ -640,8 +643,10 @@ class OrionCLI {
                           contextPercent > 20 ? colors.warning : 
                           colors.error;
       
-      // Model indicator
-      const modelDisplay = this.config.color(`[${this.config.icon} ${this.config.model.toUpperCase()}]`);
+      // Model indicator - show active model
+      const displayModel = this.activeModel || this.config.model;
+      const modelConfig = this.loadConfig(displayModel);
+      const modelDisplay = modelConfig.color(`[${modelConfig.icon} ${displayModel.toUpperCase()}]`);
       
       // Combine all indicators
       output += colors.warning(`${spinner} Processing...`) + 
@@ -1253,6 +1258,13 @@ class OrionCLI {
 
   // Smart model selection
   selectModelForTask(input) {
+    // If using a custom/non-OpenAI model (like DeepSeek), never route to other models
+    const customModels = ['deepseek-r1']; // Add more custom models here as needed
+    if (customModels.includes(this.config.model)) {
+      return this.config.model; // Always use the selected custom model
+    }
+    
+    // Only do smart routing for OpenAI/Azure models
     const lowerInput = input.toLowerCase();
     
     // Code tasks -> gpt-5
@@ -1260,12 +1272,8 @@ class OrionCLI {
       return 'gpt-5';
     }
     
-    // Complex reasoning, planning, orchestration -> o3 or DeepSeek
+    // Complex reasoning, planning, orchestration -> o3
     if (/\b(analyze|think|reason|logic|complex|strategy|plan|architecture|design|solve|orchestrat|build|create|implement|develop|organize|structure)\b/.test(lowerInput)) {
-      // Use DeepSeek for deep reasoning if available
-      if (process.env.DEEPSEEK_KEY && /\b(deep|thorough|comprehensive|detailed|exhaustive)\b/.test(lowerInput)) {
-        return 'deepseek-r1';
-      }
       return 'o3';
     }
     
@@ -1365,14 +1373,15 @@ class OrionCLI {
     let usingClient = this.client;
     let usingConfig = this.config;
     
-    // Only show routing if model changes
+    // Switch model if needed (no UI message spam)
     if (optimalModel !== this.config.model) {
-      this.addMessage('system', `${colors.info('🎯')} ${colors.dim(taskInfo.type)} → ${this.config.color(optimalModel)}`);
-      this.render();
-      
       process.env.MODEL = optimalModel;
       usingConfig = this.loadConfig();
       usingClient = this.createClient();
+      
+      // Track the active model for status display
+      this.activeModel = optimalModel;
+      this.render(); // Update status bar
     }
     
     // Only show tools if needed and high priority
