@@ -1,5 +1,62 @@
 {
-  "tools": {},
-  "history": [],
-  "activeVersions": {}
+  "tools": {
+    "analyze_structure": {
+      "versions": [
+        {
+          "version": "1756981138965",
+          "path": "/Users/mike.admon/UNIPATH_PROJECT/OrionCLI/.tool-forge/versions/analyze_structure_v1756981138965.js",
+          "spec": {
+            "toolName": "analyze_structure",
+            "functionality": "Analyzes project directory structure and file statistics",
+            "parameters": [
+              "directory",
+              "depth"
+            ],
+            "returnType": "object",
+            "category": "file_ops"
+          },
+          "created": "2025-09-04T10:18:59.028Z",
+          "testsPassed": true,
+          "notes": "Initial version"
+        },
+        {
+          "version": "1756981140031",
+          "path": "/Users/mike.admon/UNIPATH_PROJECT/OrionCLI/.tool-forge/versions/analyze_structure_v1756981140031.js",
+          "spec": {
+            "toolName": "analyze_structure",
+            "functionality": "Enhanced structure analyzer with caching",
+            "parameters": [
+              "directory",
+              "depth",
+              "includeHidden"
+            ],
+            "returnType": "object",
+            "category": "file_ops"
+          },
+          "created": "2025-09-04T10:19:00.088Z",
+          "testsPassed": true,
+          "notes": "Parameters changed from [directory, depth] to [directory, depth, includeHidden]; Functionality updated: Enhanced structure analyzer with caching"
+        }
+      ],
+      "activeVersion": "1756981140031",
+      "created": "2025-09-04T10:18:59.028Z"
+    }
+  },
+  "history": [
+    {
+      "action": "register",
+      "tool": "analyze_structure",
+      "version": "1756981138965",
+      "timestamp": "2025-09-04T10:18:59.028Z"
+    },
+    {
+      "action": "register",
+      "tool": "analyze_structure",
+      "version": "1756981140031",
+      "timestamp": "2025-09-04T10:19:00.088Z"
+    }
+  ],
+  "activeVersions": {
+    "analyze_structure": "1756981140031"
+  }
 }

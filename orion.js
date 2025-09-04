@@ -1994,11 +1994,30 @@ ABSOLUTE REQUIREMENTS:
   async executeBashCommand(command) {
     return new Promise((resolve, reject) => {
       const { exec } = require('child_process');
-      exec(command, (error, stdout, stderr) => {
+      // Increase buffer size to 10MB for large outputs
+      const options = {
+        maxBuffer: 10 * 1024 * 1024, // 10MB buffer
+        timeout: 30000 // 30 second timeout
+      };
+      
+      exec(command, options, (error, stdout, stderr) => {
         if (error) {
-          reject(new Error(stderr || error.message));
+          // Handle buffer overflow gracefully
+          if (error.message.includes('maxBuffer')) {
+            // Try to get partial output
+            const partialOutput = stdout ? stdout.substring(0, 50000) : '';
+            resolve(partialOutput + '\n\n⚠️ Output truncated (exceeded 10MB limit)');
+          } else {
+            reject(new Error(stderr || error.message));
+          }
         } else {
-          resolve(stdout.trim() || 'Command executed successfully');
+          // Smart truncation for very large outputs
+          if (stdout && stdout.length > 100000) {
+            const truncated = stdout.substring(0, 100000);
+            resolve(truncated + '\n\n⚠️ Output truncated for display (showing first 100KB)');
+          } else {
+            resolve(stdout.trim() || 'Command executed successfully');
+          }
         }
       });
     });
