@@ -29,6 +29,7 @@ const ProjectAwareness = require('./src/intelligence/project-awareness');
 const ContextManager = require('./src/intelligence/context-manager');
 const AdaptiveOrchestrator = require('./src/intelligence/adaptive-orchestrator');
 const SimpleOrchestrator = require('./src/intelligence/simple-orchestrator');
+const ToolForgeIntegration = require('./src/experimental/tool-forge-integration');
 const { exec } = require('child_process');
 const { promisify } = require('util');
 const execAsync = promisify(exec);
@@ -126,6 +127,10 @@ class OrionCLI {
     this.contextManager = new ContextManager();
     this.adaptiveOrchestrator = new AdaptiveOrchestrator();
     this.simpleOrchestrator = new SimpleOrchestrator(); // Simpler alternative
+    
+    // Experimental ToolForge integration
+    this.toolForge = new ToolForgeIntegration();
+    this.toolForgeEnabled = false; // Disabled by default
     
     // Permission system
     this.permissionManager = new PermissionManager();
@@ -787,6 +792,19 @@ class OrionCLI {
       case 'permissions':
         await this.showPermissions();
         break;
+      case 'forge':
+        await this.toggleToolForge();
+        break;
+      case 'forge-list':
+        await this.listForgedTools();
+        break;
+      case 'forge-rollback':
+        if (parts[1]) {
+          await this.rollbackTool(parts[1], parts[2]);
+        } else {
+          this.addMessage('error', 'Usage: /forge-rollback <tool-name> [version]');
+        }
+        break;
       case 'about':
         this.showAbout();
         break;
@@ -826,6 +844,8 @@ class OrionCLI {
     this.addMessage('system', colors.success('/context') + '     - Show context & token stats');
     this.addMessage('system', colors.success('/tools') + '       - Show 54+ tools');
     this.addMessage('system', colors.success('/permissions') + '  - Manage permissions');
+    this.addMessage('system', colors.success('/forge') + '       - Toggle ToolForge (experimental)');
+    this.addMessage('system', colors.success('/forge-list') + '  - List forged tools');
     this.addMessage('system', colors.success('/about') + '       - About OrionCLI');
     this.addMessage('system', colors.success('/exit') + '        - Quit');
     
@@ -1821,6 +1841,28 @@ ABSOLUTE REQUIREMENTS:
         // Don't render inside loop
         
       } catch (error) {
+        // Try ToolForge if enabled and it looks like a missing tool
+        if (this.toolForgeEnabled && this.toolForge.enabled) {
+          const shouldRetry = await this.toolForge.handleToolError(error, {
+            toolCall,
+            input: this.messages[this.messages.length - 1]
+          });
+          
+          if (shouldRetry) {
+            // Retry the tool call with the newly forged tool
+            this.addMessage('system', colors.dim('🔄 Retrying with forged tool...'));
+            // Re-execute the same tool with same args
+            try {
+              const result = await this.toolRegistry.executeTool(toolCall.function.name, JSON.parse(toolCall.function.arguments));
+              this.addMessage('tool', colors.success(typeof result === 'object' ? (result.output || JSON.stringify(result, null, 2)) : String(result)));
+              continue; // Skip the error message below
+            } catch (retryError) {
+              // Forged tool still failed
+              this.addMessage('error', `Forged tool failed: ${retryError.message}`);
+            }
+          }
+        }
+        
         this.addMessage('error', `${error.message}`);
         // Don't render inside loop
       }
@@ -1947,6 +1989,74 @@ ABSOLUTE REQUIREMENTS:
   async getDiskUsage(path) {
     const command = process.platform === 'win32' ? `dir "${path}"` : `du -sh "${path}"`;
     return await this.executeBashCommand(command);
+  }
+
+  // ToolForge Methods
+  async toggleToolForge() {
+    this.toolForgeEnabled = !this.toolForgeEnabled;
+    
+    if (this.toolForgeEnabled) {
+      // Initialize ToolForge with current context
+      await this.toolForge.init(
+        { client: this.client, config: this.loadConfig.bind(this), createClient: this.createClient.bind(this) },
+        this.toolRegistry
+      );
+      this.toolForge.enable();
+      this.addMessage('system', colors.success('🔧 ToolForge ENABLED - Experimental self-improving tool creation active'));
+      this.addMessage('system', colors.warning('⚠️  Warning: This is experimental. Tools will be auto-generated and tested.'));
+      this.addMessage('system', colors.dim('Use /forge-rollback to revert problematic tools'));
+    } else {
+      this.toolForge.disable();
+      this.addMessage('system', colors.dim('🔧 ToolForge DISABLED'));
+    }
+  }
+
+  async listForgedTools() {
+    if (!this.toolForgeEnabled) {
+      this.addMessage('error', 'ToolForge is not enabled. Use /forge to enable.');
+      return;
+    }
+    
+    const tools = await this.toolForge.listForgedTools();
+    
+    if (tools.length === 0) {
+      this.addMessage('system', colors.dim('No forged tools yet'));
+      return;
+    }
+    
+    this.addMessage('system', colors.primary('🔧 Forged Tools:'));
+    for (const tool of tools) {
+      this.addMessage('system', colors.info(
+        `  • ${tool.name} v${tool.activeVersion} (${tool.versions} versions)`
+      ));
+    }
+    
+    // Show recent history
+    const history = this.toolForge.getHistory().slice(-5);
+    if (history.length > 0) {
+      this.addMessage('system', colors.dim('\nRecent activity:'));
+      for (const entry of history) {
+        const time = new Date(entry.timestamp).toLocaleTimeString();
+        this.addMessage('system', colors.dim(
+          `  [${time}] ${entry.action} ${entry.tool} v${entry.version}`
+        ));
+      }
+    }
+  }
+
+  async rollbackTool(toolName, version = null) {
+    if (!this.toolForgeEnabled) {
+      this.addMessage('error', 'ToolForge is not enabled. Use /forge to enable.');
+      return;
+    }
+    
+    const success = await this.toolForge.rollbackTool(toolName, version);
+    
+    if (success) {
+      this.addMessage('system', colors.success(`✅ Rolled back ${toolName}`));
+    } else {
+      this.addMessage('error', `Failed to rollback ${toolName}`);
+    }
   }
 
   exit() {
