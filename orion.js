@@ -597,6 +597,44 @@ class OrionCLI {
     }
   }
 
+  formatLongOutput(output) {
+    // Smart formatting for very long outputs
+    if (!output || typeof output !== 'string') return output;
+    
+    const lines = output.split('\n');
+    const lineCount = lines.length;
+    
+    // For outputs with many lines (> 20), show first 5 and summary
+    if (lineCount > 20) {
+      const firstLines = lines.slice(0, 5).join('\n');
+      const remainingCount = lineCount - 5;
+      const lastLine = lines[lineCount - 1];
+      
+      // Include the last line if it's a summary (like "total" in wc)
+      const showLast = lastLine && (
+        lastLine.includes('total') || 
+        lastLine.includes('Total') || 
+        lastLine.includes('files') ||
+        lastLine.includes('directories')
+      );
+      
+      let formatted = firstLines + '\n' + colors.dim(`\n... ${remainingCount} more lines ...`);
+      
+      if (showLast && lastLine.trim()) {
+        formatted += '\n' + colors.accent(lastLine);
+      }
+      
+      return formatted;
+    }
+    
+    // For very long single lines (> 1000 chars), truncate
+    if (output.length > 1000 && lineCount <= 3) {
+      return output.substring(0, 500) + colors.dim('\n... truncated ...') + '\n' + output.substring(output.length - 200);
+    }
+    
+    return output;
+  }
+
   addMessage(type, content) {
     // Handle null/undefined content
     if (content === null || content === undefined) {
@@ -1949,6 +1987,9 @@ ABSOLUTE REQUIREMENTS:
             displayMessage = String(result);
           }
           
+          // Smart display for very long outputs
+          displayMessage = this.formatLongOutput(displayMessage);
+          
           this.addMessage('tool', colors.success(displayMessage));
         } else {
           this.addMessage('tool', colors.warning('Tool executed but returned no output'));
@@ -1969,7 +2010,9 @@ ABSOLUTE REQUIREMENTS:
             // Re-execute the same tool with same args
             try {
               const result = await this.toolRegistry.executeTool(toolCall.function.name, JSON.parse(toolCall.function.arguments));
-              this.addMessage('tool', colors.success(typeof result === 'object' ? (result.output || JSON.stringify(result, null, 2)) : String(result)));
+              let displayMessage = typeof result === 'object' ? (result.output || JSON.stringify(result, null, 2)) : String(result);
+              displayMessage = this.formatLongOutput(displayMessage);
+              this.addMessage('tool', colors.success(displayMessage));
               continue; // Skip the error message below
             } catch (retryError) {
               // Forged tool still failed
@@ -2011,13 +2054,9 @@ ABSOLUTE REQUIREMENTS:
             reject(new Error(stderr || error.message));
           }
         } else {
-          // Smart truncation for very large outputs
-          if (stdout && stdout.length > 100000) {
-            const truncated = stdout.substring(0, 100000);
-            resolve(truncated + '\n\n⚠️ Output truncated for display (showing first 100KB)');
-          } else {
-            resolve(stdout.trim() || 'Command executed successfully');
-          }
+          // Apply smart formatting for long outputs
+          const output = stdout.trim() || 'Command executed successfully';
+          resolve(output);
         }
       });
     });
