@@ -27,6 +27,7 @@ const TaskUnderstanding = require('./src/intelligence/task-understanding');
 const EnhancedOrchestration = require('./src/intelligence/enhanced-orchestration');
 const ProjectAwareness = require('./src/intelligence/project-awareness');
 const ContextManager = require('./src/intelligence/context-manager');
+const AdaptiveOrchestrator = require('./src/intelligence/adaptive-orchestrator');
 const { exec } = require('child_process');
 const { promisify } = require('util');
 const execAsync = promisify(exec);
@@ -122,6 +123,7 @@ class OrionCLI {
     this.orchestration = new EnhancedOrchestration(); // Single orchestration system
     this.projectAwareness = new ProjectAwareness();
     this.contextManager = new ContextManager();
+    this.adaptiveOrchestrator = new AdaptiveOrchestrator();
     
     // Permission system
     this.permissionManager = new PermissionManager();
@@ -997,14 +999,14 @@ class OrionCLI {
       return 'o3';
     }
     
-    // File operations that need understanding -> o3 for better reasoning
+    // File operations that need understanding -> use gpt-5-chat for speed
     if (/\b(what is|explain|understand|describe|summarize|review)\b.*\b(file|code|content|about)\b/i.test(lowerInput)) {
-      return 'o3';
+      return 'gpt-5-chat';  // Fast and capable for file operations
     }
     
-    // Multi-step tasks -> o3 for orchestration
+    // Multi-step tasks -> use gpt-5-chat for better tool execution
     if (/\b(step|then|after|next|first|second|finally|todo|tasks?)\b/.test(lowerInput)) {
-      return 'o3';
+      return 'gpt-5-chat';  // Better at executing multiple tools
     }
     
     // Visual content -> gpt-4o
@@ -1017,8 +1019,8 @@ class OrionCLI {
       return 'o4-mini';
     }
     
-    // Default to o3 for better reasoning (not o4-mini)
-    return this.config.model === 'o4-mini' ? 'o3' : this.config.model;
+    // Default to gpt-5-chat for better tool execution
+    return this.config.model === 'o4-mini' ? 'gpt-5-chat' : this.config.model;
   }
 
   isDirectCommand(input) {
@@ -1102,7 +1104,37 @@ class OrionCLI {
         Object.assign(contextInfo, intentAnalysis.context);
       }
       
-      // Create execution plan using enhanced orchestration
+      // Check if this needs adaptive orchestration (mega tasks)
+      const needsAdaptive = this.adaptiveOrchestrator.needsOrchestration(input);
+      
+      if (needsAdaptive) {
+        // Use adaptive orchestrator for complex mega tasks
+        this.addMessage('system', colors.info('🎯 Mega task detected - using adaptive orchestration'));
+        this.render();
+        
+        const orchestrationResult = await this.adaptiveOrchestrator.orchestrate(
+          input,
+          usingClient,
+          this.buildSystemPrompt(taskInfo, contextInfo),
+          async (toolResponse) => {
+            // Process tool execution from orchestrator
+            const parsed = JsonToolParser.processResponse(toolResponse);
+            if (parsed.hasTools && parsed.toolCalls.length > 0) {
+              for (const toolCall of parsed.toolCalls) {
+                await this.handleToolCalls([toolCall]);
+              }
+            }
+          }
+        );
+        
+        if (orchestrationResult && orchestrationResult.success) {
+          this.addMessage('assistant', `✅ Completed ${orchestrationResult.completedSteps} steps successfully!`);
+          this.render();
+          return;
+        }
+      }
+      
+      // Regular execution path for simpler tasks
       const executionPlan = await this.orchestration.buildExecutionPlan(input, contextInfo);
       
       // Check if todo planning is required
@@ -1200,6 +1232,9 @@ class OrionCLI {
       if (process.env.DEBUG_TOOLS) {
         console.log(colors.dim(`\n✅ Got response from API`));
         console.log(colors.dim(`  Response length: ${response ? response.length : 0}`));
+        if (response) {
+          console.log(colors.dim(`  First 500 chars: ${response.substring(0, 500)}`));
+        }
       }
       
       // Handle tool calls if present (proper OpenAI format)
@@ -1485,6 +1520,33 @@ MULTI-TOOL EXECUTION:
   {"tool": "read_file", "args": {"filename": "package.json"}}
   {"tool": "write_file", "args": {"filename": "summary.md", "content": "Summary content here..."}}
 • Keep executing tools until the ENTIRE task is complete
+
+MEGA-TASK EXECUTION (20+ operations):
+• Break the task into logical chunks but EXECUTE ALL OF THEM
+• Create directories first, then files inside them
+• For each major step, output the appropriate tool JSON
+• DO NOT STOP until you've addressed EVERY part of the request
+• If the user asks for 30 things, do ALL 30 things
+• Example approach for mega-tasks:
+  1. Parse the entire request and identify ALL operations needed
+  2. Execute them in logical order (directories before files)
+  3. Continue outputting tool JSONs until complete
+• CRITICAL: You must be as capable as Claude - handle everything!
+
+AUTONOMOUS ERROR HANDLING & RECOVERY:
+• If a tool fails, AUTOMATICALLY try an alternative approach
+• Directory doesn't exist? Create it with mkdir -p first
+• File not found? Check if path is correct, try alternative paths
+• Permission denied? Try with sudo or alternative location
+• Command fails? Try variations or workarounds
+• NEVER give up - always find a solution
+• Example recovery patterns:
+  - write_file fails → try execute_bash with echo > file
+  - read_file fails → try execute_bash with cat
+  - mkdir fails → try execute_bash with mkdir -p
+  - Complex operation fails → break into simpler steps
+• BE CREATIVE: If standard approach fails, use bash commands
+• PERSISTENCE: Keep trying different approaches until success
     
 Current Context:
 - Working Directory: ${contextInfo.workingDir}
@@ -1592,7 +1654,9 @@ IMPORTANT: Always use the RIGHT tool for the task. Read files when asked ABOUT t
 Output tools as EXACT JSON on a single line. Here are ALL available tool formats:
 
 FILE OPERATIONS (use these exact structures):
+• Create directory: {"tool": "execute_bash", "args": {"command": "mkdir -p directory_name"}}
 • Create file: {"tool": "write_file", "args": {"filename": "name.ext", "content": "file content here"}}
+• Create file in directory: {"tool": "write_file", "args": {"filename": "dir/name.ext", "content": "content"}}
 • Read file: {"tool": "read_file", "args": {"filename": "name.ext"}}  
 • Edit file: {"tool": "edit_file", "args": {"filename": "name.ext", "old_text": "text to find", "new_text": "replacement"}}
 • List files: {"tool": "list_files", "args": {"directory": "."}}
@@ -1630,6 +1694,9 @@ ABSOLUTE REQUIREMENTS:
   // OLD METHOD REMOVED - Now using modular OrionToolRegistry
   
   async handleToolCalls(toolCalls) {
+    if (process.env.DEBUG_TOOLS) {
+      console.log(colors.dim(`\n🔨 handleToolCalls invoked with ${toolCalls ? toolCalls.length : 0} tool(s)`));
+    }
     for (const toolCall of toolCalls) {
       // Show minimal tool execution indicator
       this.addMessage('system', colors.tool(`🔧 ${toolCall.function.name}`));
@@ -1660,14 +1727,50 @@ ABSOLUTE REQUIREMENTS:
             retries++;
             if (retries > maxRetries) {
               // Max retries reached, try to recover
-              this.addMessage('system', colors.warning(`⚠️ Tool failed, attempting recovery...`));
+              this.addMessage('system', colors.warning(`⚠️ Tool failed, attempting smart recovery...`));
               
-              // Try alternative approach
+              // Smart recovery based on error type and tool
               if (toolCall.function.name === 'write_file' || toolCall.function.name === 'create_file') {
-                // Fallback to basic file write
-                const fs = require('fs').promises;
-                await fs.writeFile(args.filename || args.path, args.content || '', 'utf8');
-                result = { output: `✅ File created via fallback: ${args.filename || args.path}` };
+                // Check if directory exists, create if needed
+                const path = require('path');
+                const dir = path.dirname(args.filename || args.path);
+                if (dir && dir !== '.') {
+                  try {
+                    await this.executeBashCommand(`mkdir -p ${dir}`);
+                    this.addMessage('system', colors.success(`✅ Created directory: ${dir}`));
+                  } catch (e) {
+                    // Directory creation failed, but continue anyway
+                  }
+                }
+                
+                // Try bash echo as fallback
+                try {
+                  const filename = args.filename || args.path;
+                  const content = (args.content || '').replace(/'/g, "'\\''");
+                  await this.executeBashCommand(`echo '${content}' > ${filename}`);
+                  result = { output: `✅ File created via bash: ${filename}` };
+                } catch (e) {
+                  // Last resort - basic file write
+                  const fs = require('fs').promises;
+                  await fs.writeFile(args.filename || args.path, args.content || '', 'utf8');
+                  result = { output: `✅ File created via fallback: ${args.filename || args.path}` };
+                }
+              } else if (toolCall.function.name === 'read_file') {
+                // Try bash cat as fallback
+                try {
+                  const output = await this.executeBashCommand(`cat ${args.filename}`);
+                  result = { output };
+                } catch (e) {
+                  throw toolError;
+                }
+              } else if (toolCall.function.name === 'list_files') {
+                // Try bash ls as fallback
+                try {
+                  const output = await this.executeBashCommand(`ls -la ${args.directory || '.'}`);
+                  result = { output };
+                } catch (e) {
+                  throw toolError;
+                }
               } else {
                 throw toolError;
               }
