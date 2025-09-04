@@ -28,6 +28,7 @@ const EnhancedOrchestration = require('./src/intelligence/enhanced-orchestration
 const ProjectAwareness = require('./src/intelligence/project-awareness');
 const ContextManager = require('./src/intelligence/context-manager');
 const AdaptiveOrchestrator = require('./src/intelligence/adaptive-orchestrator');
+const SimpleOrchestrator = require('./src/intelligence/simple-orchestrator');
 const { exec } = require('child_process');
 const { promisify } = require('util');
 const execAsync = promisify(exec);
@@ -124,6 +125,7 @@ class OrionCLI {
     this.projectAwareness = new ProjectAwareness();
     this.contextManager = new ContextManager();
     this.adaptiveOrchestrator = new AdaptiveOrchestrator();
+    this.simpleOrchestrator = new SimpleOrchestrator(); // Simpler alternative
     
     // Permission system
     this.permissionManager = new PermissionManager();
@@ -1104,20 +1106,20 @@ class OrionCLI {
         Object.assign(contextInfo, intentAnalysis.context);
       }
       
-      // Check if this needs adaptive orchestration (mega tasks)
-      const needsAdaptive = this.adaptiveOrchestrator.needsOrchestration(input);
+      // Check if this needs orchestration (mega tasks)
+      const needsOrchestration = this.simpleOrchestrator.needsOrchestration(input);
       
       if (process.env.DEBUG_TOOLS) {
-        console.log(colors.dim(`\n🔍 Orchestration check: ${needsAdaptive ? 'YES - Mega task!' : 'NO - Regular task'}`));
+        console.log(colors.dim(`\n🔍 Orchestration check: ${needsOrchestration ? 'YES - Mega task!' : 'NO - Regular task'}`));
       }
       
-      if (needsAdaptive) {
-        // Use adaptive orchestrator for complex mega tasks
-        this.addMessage('system', colors.info('🎯 Mega task detected - using adaptive orchestration'));
+      if (needsOrchestration) {
+        // Use simple orchestrator for reliability
+        this.addMessage('system', colors.info('🎯 Mega task detected - using orchestration'));
         this.render();
         
         // Pass the config so orchestrator can create proper clients
-        const orchestrationResult = await this.adaptiveOrchestrator.orchestrate(
+        const orchestrationResult = await this.simpleOrchestrator.orchestrate(
           input,
           { client: usingClient, config: this.loadConfig.bind(this), createClient: this.createClient.bind(this) },
           this.buildSystemPrompt(taskInfo, contextInfo),
@@ -1132,10 +1134,16 @@ class OrionCLI {
           }
         );
         
-        if (orchestrationResult && orchestrationResult.success) {
-          this.addMessage('assistant', `✅ Completed ${orchestrationResult.completedSteps} steps successfully!`);
+        if (orchestrationResult) {
+          if (orchestrationResult.success) {
+            this.addMessage('assistant', `✅ Completed ${orchestrationResult.completedSteps} steps successfully!`);
+          } else {
+            this.addMessage('assistant', `Completed ${orchestrationResult.completedSteps || 0} steps with ${orchestrationResult.errors || 0} errors.`);
+          }
           this.render();
-          return;
+          return; // IMPORTANT: Exit here to prevent regular execution
+        } else {
+          this.addMessage('system', colors.warning('⚠️ Orchestration failed, falling back to regular execution'));
         }
       }
       

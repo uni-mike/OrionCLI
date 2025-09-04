@@ -475,11 +475,29 @@ Suggest recovery strategy:
   async orchestrate(input, clientInfo, systemPrompt, onToolExecution) {
     console.log(colors.info('🚀 Starting adaptive orchestration...'));
     
+    // Add timeout protection
+    const startTime = Date.now();
+    const maxTime = 60000; // 60 second max
+    
+    // Reset state for new orchestration
+    this.state = {
+      goal: null,
+      strategy: null,
+      completedSteps: [],
+      errors: [],
+      adaptations: 0,
+      currentChunk: null
+    };
+    
     // Step 1: Create strategy
     const strategy = await this.createStrategy(input, clientInfo);
     if (!strategy) {
       console.log(colors.error('Failed to create strategy'));
-      return null;
+      return { 
+        completedSteps: 0, 
+        errors: 1, 
+        success: false 
+      };
     }
     
     // Step 2: Execute in adaptive chunks
@@ -488,6 +506,12 @@ Suggest recovery strategy:
     const maxChunks = Math.ceil(strategy.total_steps_estimate / 7); // Average 7 steps per chunk
     
     while (!complete && chunkCount < maxChunks) {
+      // Check timeout
+      if (Date.now() - startTime > maxTime) {
+        console.log(colors.warning('⏱️ Orchestration timeout reached'));
+        break;
+      }
+      
       chunkCount++;
       
       // Plan next chunk

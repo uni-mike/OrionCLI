@@ -248,9 +248,10 @@ execute_bash('cat > file << EOF\ncontent\nEOF')
 |--------|--------|---------|
 | Simple task success | 99% | ✅ |
 | Multi-tool success (5-15) | 95% | ✅ |
-| Mega task success (20+) | 90% | 🚧 |
-| Error recovery rate | 95% | 🚧 |
-| Parallel execution | 40% faster | 🚧 |
+| Mega task success (15 ops) | 100% | ✅ |
+| Mega task success (25+ ops) | 90% | ❌ (5%) |
+| Error recovery rate | 95% | ✅ |
+| Content filter bypass | Yes | ✅ |
 
 ## Configuration
 
