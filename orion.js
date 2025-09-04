@@ -1664,10 +1664,8 @@ class OrionCLI {
       this.inputBuffer = '';
       this.cursorPosition = 0;
       
-      // Just refresh the input area after a short delay
-      setTimeout(() => {
-        this.render();
-      }, 100);
+      // Force immediate render to show completed response
+      this.render();
     }
   }
 
