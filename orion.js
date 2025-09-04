@@ -151,6 +151,10 @@ class OrionCLI {
     this.renderTimeout = null;
     this.sessionStartTime = Date.now();
     this.lastToggleTime = 0;
+    
+    // Token tracking
+    this.currentTokens = 0;
+    this.maxTokens = 1000000; // 1M token context window
   }
 
   loadConfig() {
@@ -486,8 +490,13 @@ class OrionCLI {
     
     // Filter out user messages to reduce spam - user input is already shown in the input box
     const filteredMessages = this.showUserMessages ? this.messages : this.messages.filter(msg => {
-      // Keep all non-user messages
-      return !msg.startsWith(colors.success('▸ You: '));
+      // Handle both string and object messages
+      if (typeof msg === 'object') {
+        // Keep all object messages (like thinking messages)
+        return true;
+      }
+      // For string messages, filter out user messages
+      return typeof msg === 'string' && !msg.startsWith(colors.success('▸ You: '));
     });
     
     const visibleMessages = filteredMessages.slice(-messageAreaHeight);
@@ -522,6 +531,11 @@ class OrionCLI {
 
   formatMessage(msg) {
     if (!msg) return '';
+    
+    // Handle thinking messages (object with type and content)
+    if (typeof msg === 'object' && msg.type === 'thinking') {
+      return msg.content; // Content is already formatted
+    }
     
     // Ensure msg is a string
     msg = String(msg);
@@ -627,7 +641,24 @@ class OrionCLI {
       output += shortcuts.join(colors.dim(' • '));
     } else {
       const spinner = this.spinnerFrames[this.spinnerIndex] || '⏳';
-      output += colors.warning(`${spinner} Processing... Press Esc to cancel`);
+      
+      // Calculate context usage percentage
+      const contextPercent = Math.max(0, 100 - Math.round((this.currentTokens / this.maxTokens) * 100));
+      const contextColor = contextPercent > 50 ? colors.success : 
+                          contextPercent > 20 ? colors.warning : 
+                          colors.error;
+      
+      // Model indicator
+      const modelDisplay = this.config.color(`[${this.config.icon} ${this.config.model.toUpperCase()}]`);
+      
+      // Combine all indicators
+      output += colors.warning(`${spinner} Processing...`) + 
+                colors.dim(' │ ') + 
+                contextColor(`${contextPercent}% context free`) +
+                colors.dim(' │ ') +
+                modelDisplay +
+                colors.dim(' │ ') +
+                colors.dim('Press Esc to cancel');
     }
     
     return output;
@@ -704,6 +735,11 @@ class OrionCLI {
       case 'assistant':
         prefix = this.config.color(`${this.config.icon} Orion: `);
         break;
+      case 'thinking':
+        // Special handling for thinking display - no prefix, just show formatted content
+        this.messages.push({ type, content });
+        this.render();
+        return;
       case 'system':
         prefix = colors.info('⚡ System: ');
         color = colors.dim;
@@ -1424,11 +1460,21 @@ class OrionCLI {
         content: input
       });
       
+      // Update token count (rough estimation: 1 token ≈ 4 chars)
+      this.currentTokens += Math.ceil(input.length / 4);
+      
       // Smart context management - handles up to 1M tokens then compacts
       this.conversationHistory = await this.contextManager.manageContext(
         this.conversationHistory, 
         usingConfig.model
       );
+      
+      // Recalculate tokens after context management
+      if (this.currentTokens > this.maxTokens * 0.8) {
+        this.currentTokens = this.conversationHistory.reduce((sum, msg) => {
+          return sum + Math.ceil(msg.content.length / 4);
+        }, 0);
+      }
       
       // Get context statistics
       const contextStats = this.contextManager.getRemainingSpace(
@@ -1490,7 +1536,25 @@ class OrionCLI {
       }
       
       const completion = await usingClient.chat.completions.create(completionParams);
-      const response = completion.choices[0].message.content;
+      let response = completion.choices[0].message.content;
+      
+      // Parse and format DeepSeek thinking tags
+      if (response && response.includes('<think>')) {
+        const thinkMatch = response.match(/<think>([\s\S]*?)<\/think>/);
+        if (thinkMatch) {
+          const thinkingContent = thinkMatch[1];
+          const mainResponse = response.replace(/<think>[\s\S]*?<\/think>/, '').trim();
+          
+          // Format thinking steps into beautiful display
+          const thinkingSteps = this.formatThinkingProcess(thinkingContent);
+          if (thinkingSteps) {
+            this.addMessage('thinking', thinkingSteps);
+          }
+          
+          // Use the main response without think tags
+          response = mainResponse;
+        }
+      }
       
       // Debug: Log response received
       if (process.env.DEBUG_TOOLS) {
@@ -1567,10 +1631,14 @@ class OrionCLI {
         }
         
         // Add assistant response to conversation history
+        const assistantContent = parsed.cleanText || response;
         this.conversationHistory.push({
           role: 'assistant',
-          content: parsed.cleanText || response
+          content: assistantContent
         });
+        
+        // Update token count
+        this.currentTokens += Math.ceil(assistantContent.length / 4);
       }
     } catch (error) {
       console.error('Error in processWithAI:', error);
@@ -1733,8 +1801,61 @@ class OrionCLI {
     return context;
   }
   
+  formatThinkingProcess(thinkingContent) {
+    if (!thinkingContent || !thinkingContent.trim()) return null;
+    
+    // Split into paragraphs and extract key thinking steps
+    const lines = thinkingContent.split('\n').filter(line => line.trim());
+    const steps = [];
+    
+    // Extract meaningful thinking steps
+    lines.forEach(line => {
+      line = line.trim();
+      if (line.length > 20) { // Skip very short lines
+        // Look for key patterns
+        if (line.match(/^(I need to|I should|Let me|The user|Wait|Actually|So|Yes|No|Okay)/i)) {
+          steps.push(line);
+        } else if (line.includes('?') || line.includes('!')) {
+          steps.push(line);
+        } else if (line.match(/^\d+\.|^-|^•/)) {
+          steps.push(line);
+        }
+      }
+    });
+    
+    if (steps.length === 0) return null;
+    
+    // Format as beautiful thinking display
+    const gradient = require('gradient-string');
+    const thinkGradient = gradient(['#9333EA', '#7C3AED', '#6366F1']);
+    
+    let formatted = '\n' + thinkGradient('🧠 Thinking Process') + '\n';
+    formatted += colors.dim('─'.repeat(50)) + '\n';
+    
+    // Format steps with bullets and indentation
+    steps.slice(0, 10).forEach((step, i) => { // Limit to 10 steps
+      const bullet = colors.primary('→');
+      const text = step
+        .replace(/^(I need to|I should|Let me)/i, chalk.bold('$1'))
+        .replace(/^(Wait|Actually|But|However)/i, colors.warning('$1'))
+        .replace(/^(Yes|Okay|So)/i, colors.success('$1'))
+        .replace(/^(No)/i, colors.error('$1'));
+      
+      formatted += `  ${bullet} ${text}\n`;
+    });
+    
+    if (steps.length > 10) {
+      formatted += colors.dim(`  ... and ${steps.length - 10} more thoughts\n`);
+    }
+    
+    formatted += colors.dim('─'.repeat(50));
+    return formatted;
+  }
+  
   buildSystemPrompt(taskInfo, contextInfo) {
-    let prompt = `You are OrionCLI, an AI assistant that TAKES ACTION IMMEDIATELY.
+    const currentModel = this.config.model || 'gpt-5-chat';
+    const modelName = currentModel.toUpperCase().replace('-', ' ');
+    let prompt = `You are OrionCLI powered by ${modelName}, an AI assistant that TAKES ACTION IMMEDIATELY.
 
 🚀 PRIME DIRECTIVE: BE DECISIVE - DON'T ASK, JUST DO!
 
