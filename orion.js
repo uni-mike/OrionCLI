@@ -1177,10 +1177,16 @@ class OrionCLI {
         this.addMessage('system', stdout.trim());
       }
       if (stderr) {
-        this.addMessage('error', stderr.trim());
+        // Suppress stderr during orchestration for cleaner output
+        if (!this.isOrchestrationMode) {
+          this.addMessage('error', stderr.trim());
+        }
       }
     } catch (error) {
-      this.addMessage('error', error.message);
+      // Suppress execution errors during orchestration
+      if (!this.isOrchestrationMode) {
+        this.addMessage('error', error.message);
+      }
     }
   }
 
@@ -1461,7 +1467,10 @@ class OrionCLI {
       }
     } catch (error) {
       console.error('Error in processWithAI:', error);
-      this.addMessage('error', `Error: ${error.message}`);
+      // Suppress main processing errors during orchestration
+      if (!this.isOrchestrationMode) {
+        this.addMessage('error', `Error: ${error.message}`);
+      }
       
       // More detailed error info in debug mode
       if (process.env.DEBUG_TOOLS) {
@@ -1964,12 +1973,17 @@ ABSOLUTE REQUIREMENTS:
               continue; // Skip the error message below
             } catch (retryError) {
               // Forged tool still failed
-              this.addMessage('error', `Forged tool failed: ${retryError.message}`);
+              if (!this.isOrchestrationMode) {
+                this.addMessage('error', `Forged tool failed: ${retryError.message}`);
+              }
             }
           }
         }
         
-        this.addMessage('error', `${error.message}`);
+        // Suppress tool errors during orchestration
+        if (!this.isOrchestrationMode) {
+          this.addMessage('error', `${error.message}`);
+        }
         // Don't render inside loop
       }
     }
