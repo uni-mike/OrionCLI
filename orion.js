@@ -189,12 +189,32 @@ class OrionCLI {
         supportsTemperature: false // o3 doesn't support custom temperature
       },
       'gpt-4o': {
-        endpoint: 'https://unipathai7556217047.openai.azure.com',
+        endpoint: process.env.AZURE_4O_ENDPOINT || 'https://unipathai7556217047.openai.azure.com',
         deployment: 'gpt-4o',
-        key: process.env.ORION_O3_KEY,
-        icon: '👁',
+        key: process.env.AZURE_4O_KEY || process.env.ORION_O3_KEY,
+        icon: '🔷',
+        color: colors.info,
+        supportsTemperature: true,
+        description: 'GPT-4 Optimized'
+      },
+      'gpt-4o-mini': {
+        endpoint: process.env.AZURE_4O_ENDPOINT || 'https://unipathai7556217047.openai.azure.com',
+        deployment: 'gpt-4o-mini',
+        key: process.env.AZURE_4O_KEY || process.env.ORION_O3_KEY,
+        icon: '🔹',
+        color: colors.accent,
+        supportsTemperature: true,
+        description: 'GPT-4 Mini - Fast & efficient'
+      },
+      'deepseek-r1': {
+        endpoint: process.env.DEEPSEEK_ENDPOINT || 'https://DeepSeek-R1-rkcob.eastus.models.ai.azure.com',
+        deployment: 'DeepSeek-R1-rkcob',
+        key: process.env.DEEPSEEK_KEY,
+        icon: '🌊',
         color: colors.secondary,
-        supportsTemperature: true
+        supportsTemperature: true,
+        description: 'DeepSeek-R1 - Advanced reasoning',
+        isDeepSeek: true // Special flag for DeepSeek API
       },
       'o4-mini': {
         endpoint: 'https://mike-mazsz1c6-eastus2.openai.azure.com',
@@ -218,6 +238,20 @@ class OrionCLI {
       process.exit(1);
     }
     
+    // Special handling for DeepSeek API
+    if (this.config.isDeepSeek) {
+      // DeepSeek uses a different API structure
+      return new OpenAI({
+        apiKey: this.config.key,
+        baseURL: this.config.endpoint,
+        defaultHeaders: { 
+          'api-key': this.config.key,
+          'Content-Type': 'application/json'
+        }
+      });
+    }
+    
+    // Standard Azure OpenAI configuration
     return new OpenAI({
       apiKey: this.config.key,
       baseURL: `${this.config.endpoint}/openai/deployments/${this.config.deployment}`,
@@ -1041,7 +1075,9 @@ class OrionCLI {
       { name: 'gpt-5-chat', desc: 'Conversational AI', icon: '💬' },
       { name: 'gpt-5-mini', desc: 'Fast responses', icon: '🚀' },
       { name: 'o3', desc: 'Advanced reasoning', icon: '🧠' },
-      { name: 'gpt-4o', desc: 'Multimodal (vision+text)', icon: '👁' },
+      { name: 'gpt-4o', desc: 'GPT-4 Optimized', icon: '🔷' },
+      { name: 'gpt-4o-mini', desc: 'Fast & efficient GPT-4', icon: '🔹' },
+      { name: 'deepseek-r1', desc: 'DeepSeek advanced reasoning', icon: '🌊' },
       { name: 'o4-mini', desc: 'Ultra-fast queries', icon: '⚡' }
     ];
     
@@ -1183,8 +1219,12 @@ class OrionCLI {
       return 'gpt-5';
     }
     
-    // Complex reasoning, planning, orchestration -> o3 (ENHANCED)
+    // Complex reasoning, planning, orchestration -> o3 or DeepSeek
     if (/\b(analyze|think|reason|logic|complex|strategy|plan|architecture|design|solve|orchestrat|build|create|implement|develop|organize|structure)\b/.test(lowerInput)) {
+      // Use DeepSeek for deep reasoning if available
+      if (process.env.DEEPSEEK_KEY && /\b(deep|thorough|comprehensive|detailed|exhaustive)\b/.test(lowerInput)) {
+        return 'deepseek-r1';
+      }
       return 'o3';
     }
     
@@ -1199,11 +1239,16 @@ class OrionCLI {
     }
     
     // Visual content -> gpt-4o
-    if (/\b(image|visual|picture|diagram|chart|see|view|look)\b/.test(lowerInput)) {
+    if (/\b(image|visual|picture|diagram|chart|see|view|look|screenshot|photo)\b/.test(lowerInput)) {
       return 'gpt-4o';
     }
     
-    // Quick/simple questions -> o4-mini (only for truly simple stuff)
+    // Quick/simple questions -> gpt-4o-mini for efficiency
+    if (input.length < 50 && /\b(what|when|where|who|how|simple|quick)\b/.test(lowerInput)) {
+      return 'gpt-4o-mini';
+    }
+    
+    // Ultra-simple commands -> o4-mini
     if (input.length < 30 && /^(ls|pwd|date|time|help)$/i.test(input.trim())) {
       return 'o4-mini';
     }
