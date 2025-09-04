@@ -111,11 +111,27 @@ class AdaptiveOrchestrator {
     return selectedModel;
   }
   
+  // Helper to get client for specific model
+  getClientForModel(modelName, clientInfo) {
+    // If clientInfo has the factory functions, use them
+    if (clientInfo.config && clientInfo.createClient) {
+      const savedModel = process.env.MODEL;
+      process.env.MODEL = modelName;
+      const config = clientInfo.config();
+      const client = clientInfo.createClient.call({ config });
+      process.env.MODEL = savedModel;
+      return client;
+    }
+    // Otherwise use the provided client
+    return clientInfo.client || clientInfo;
+  }
+  
   // Create initial understanding and strategy
-  async createStrategy(input, client) {
+  async createStrategy(input, clientInfo) {
     console.log(colors.dim('🧠 o3: Analyzing request and creating strategy...'));
     
     try {
+    const client = this.getClientForModel('o3', clientInfo);
     
     const strategyPrompt = `Analyze this request and create an execution strategy.
 
@@ -174,7 +190,8 @@ Output a JSON strategy:
   }
   
   // Plan next chunk adaptively
-  async planNextChunk(client, systemPrompt) {
+  async planNextChunk(clientInfo, systemPrompt) {
+    const client = this.getClientForModel('o3', clientInfo);
     const currentState = {
       completed: this.state.completedSteps.length,
       errors: this.state.errors.length,
@@ -237,7 +254,7 @@ Output JSON:
   }
   
   // Execute a single step with appropriate model and temperature
-  async executeStep(step, client, systemPrompt) {
+  async executeStep(step, clientInfo, systemPrompt) {
     // Determine task type from tool name
     let taskType = step.tool;
     if (step.tool === 'execute_bash') {
@@ -245,8 +262,15 @@ Output JSON:
     }
     
     // Select optimal model
-    const model = step.model_hint || this.selectModel(taskType);
+    let model = step.model_hint || this.selectModel(taskType);
+    
+    // Fix invalid model names from o3
+    if (model === 'shell' || model === 'bash' || !this.modelConfigs[model]) {
+      model = 'gpt-5-chat'; // Default to reliable executor
+    }
+    
     const modelConfig = this.modelConfigs[model];
+    const client = this.getClientForModel(model, clientInfo);
     
     console.log(colors.dim(`⚙️ ${model}: ${step.action}`));
     
@@ -272,9 +296,15 @@ Format:
       messages
     };
     
-    // Add temperature only if model supports it
-    if (modelConfig.supportsTemperature) {
-      completionParams.temperature = modelConfig.temperature;
+    // Add temperature only if model supports it and it's not default
+    if (modelConfig.supportsTemperature && modelConfig.temperature !== undefined && modelConfig.temperature !== 1) {
+      // Some models only support default temperature
+      if (model === 'gpt-5' || model === 'gpt-5-mini') {
+        // These models may not support custom temperature
+        // Skip temperature setting to avoid errors
+      } else {
+        completionParams.temperature = modelConfig.temperature;
+      }
     }
     
     const completion = await client.chat.completions.create(completionParams);
@@ -287,7 +317,7 @@ Format:
   }
   
   // Execute chunk with feedback and adaptation
-  async executeChunk(chunk, client, systemPrompt, onToolExecution) {
+  async executeChunk(chunk, clientInfo, systemPrompt, onToolExecution) {
     const results = [];
     const failures = [];
     
@@ -304,7 +334,7 @@ Format:
           const context = attempts > 1 ? { previousFailure: true } : {};
           
           // Execute step
-          const result = await this.executeStep(step, client, systemPrompt);
+          const result = await this.executeStep(step, clientInfo, systemPrompt);
           
           // Process tool execution
           if (result.response && onToolExecution) {
@@ -350,7 +380,8 @@ Format:
   }
   
   // Analyze failures and create recovery plan
-  async analyzeAndRecover(failures, client) {
+  async analyzeAndRecover(failures, clientInfo) {
+    const client = this.getClientForModel('o3', clientInfo);
     if (failures.length === 0) return null;
     
     console.log(colors.dim(`🔍 o3: Analyzing ${failures.length} failures...`));
@@ -400,11 +431,11 @@ Suggest recovery strategy:
   }
   
   // Main orchestration loop
-  async orchestrate(input, client, systemPrompt, onToolExecution) {
+  async orchestrate(input, clientInfo, systemPrompt, onToolExecution) {
     console.log(colors.info('🚀 Starting adaptive orchestration...'));
     
     // Step 1: Create strategy
-    const strategy = await this.createStrategy(input, client);
+    const strategy = await this.createStrategy(input, clientInfo);
     if (!strategy) {
       console.log(colors.error('Failed to create strategy'));
       return null;
@@ -419,7 +450,7 @@ Suggest recovery strategy:
       chunkCount++;
       
       // Plan next chunk
-      const chunk = await this.planNextChunk(client, systemPrompt);
+      const chunk = await this.planNextChunk(clientInfo, systemPrompt);
       if (!chunk) {
         console.log(colors.warning('No more chunks to execute'));
         break;
@@ -428,7 +459,7 @@ Suggest recovery strategy:
       // Execute chunk
       const chunkResults = await this.executeChunk(
         chunk,
-        client,
+        clientInfo,
         systemPrompt,
         onToolExecution
       );
@@ -438,7 +469,7 @@ Suggest recovery strategy:
         console.log(colors.warning(`⚠️ Chunk success rate: ${Math.round(chunkResults.successRate * 100)}%`));
         
         // Analyze and recover
-        const recovery = await this.analyzeAndRecover(chunkResults.failures, client);
+        const recovery = await this.analyzeAndRecover(chunkResults.failures, clientInfo);
         if (recovery && recovery.recovery_steps) {
           // Execute recovery steps
           const recoveryChunk = {
@@ -452,7 +483,7 @@ Suggest recovery strategy:
           };
           
           console.log(colors.info('🔧 Executing recovery plan...'));
-          await this.executeChunk(recoveryChunk, client, systemPrompt, onToolExecution);
+          await this.executeChunk(recoveryChunk, clientInfo, systemPrompt, onToolExecution);
         }
         
         this.state.adaptations++;

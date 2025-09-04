@@ -1116,9 +1116,10 @@ class OrionCLI {
         this.addMessage('system', colors.info('🎯 Mega task detected - using adaptive orchestration'));
         this.render();
         
+        // Pass the config so orchestrator can create proper clients
         const orchestrationResult = await this.adaptiveOrchestrator.orchestrate(
           input,
-          usingClient,
+          { client: usingClient, config: this.loadConfig.bind(this), createClient: this.createClient.bind(this) },
           this.buildSystemPrompt(taskInfo, contextInfo),
           async (toolResponse) => {
             // Process tool execution from orchestrator
