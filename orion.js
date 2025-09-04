@@ -78,6 +78,7 @@ const colors = {
 class OrionCLI {
   constructor() {
     this.messages = [];
+    this.renderedMessageCount = 0; // Track how many messages have been rendered
     this.inputBuffer = '';
     this.cursorPosition = 0;
     this.history = [];
@@ -115,11 +116,12 @@ class OrionCLI {
     });
     
     // Rendering control
-    this.renderMode = 'smart'; // 'smart' or 'full'
+    this.renderMode = 'initial'; // 'initial', 'incremental', or 'full'
     this.lastRenderTime = 0;
-    this.renderThrottle = 50; // Minimum ms between renders
+    this.renderThrottle = 200; // Much higher throttle to reduce flicker
     this.isScrolling = false;
     this.scrollTimeout = null;
+    this.forceNextRender = false; // Force full render on next update
     
     // Intelligence systems
     this.taskUnderstanding = new TaskUnderstanding();
@@ -144,7 +146,7 @@ class OrionCLI {
     this.activeFile = null;
     this.autoEdit = true;  // Always enabled - otherwise AI does nothing
     this.isProcessing = false;
-    this.showUserMessages = false; // Hide user messages by default to reduce spam
+    this.showUserMessages = true; // Show user messages in conversation history
     this.terminalWidth = process.stdout.columns || 80;
     this.terminalHeight = process.stdout.rows || 30;
     this.lastRender = '';
@@ -288,7 +290,6 @@ class OrionCLI {
         this.toolRegistry
       );
       this.toolForge.enable();
-      this.addMessage('system', colors.dim('🔧 ToolForge enabled - missing tools will be auto-generated'));
     }
     
     this.render();
@@ -556,26 +557,8 @@ class OrionCLI {
   }
 
   renderStatusLine() {
-    const parts = [];
-    
-    // Model with icon and color  
-    parts.push(this.config.color(`${this.config.icon} ${this.config.model.toUpperCase()}`));
-    
-    // Auto-edit status
-    parts.push(this.autoEdit ? colors.success('▶ Auto-edit ON') : colors.dim('⏸ Auto-edit OFF'));
-    
-    // Session time
-    const sessionTime = Math.floor((Date.now() - this.sessionStartTime) / 1000);
-    const minutes = Math.floor(sessionTime / 60);
-    const seconds = sessionTime % 60;
-    parts.push(colors.dim(`⏱ ${minutes}:${seconds.toString().padStart(2, '0')}`));
-    
-    // Message count (reduced importance)
-    parts.push(colors.dim(`💬 ${this.messages.length}`));
-    
-    const statusLine = parts.join(colors.dim(' │ '));
-    
-    return statusLine + '\n';
+    // Simple separator line only - main status info is now in bottom status area
+    return colors.dim('─'.repeat(this.terminalWidth)) + '\n';
   }
 
   renderInputArea() {
@@ -629,8 +612,17 @@ class OrionCLI {
     
     let output = inputBox + '\n';
     
-    // Help line
+    // Status and help line - always show current state
     if (!this.isProcessing) {
+      // Show model and status info with idle state
+      const statusParts = [
+        this.config.color(`${this.config.icon} ${this.config.model.toUpperCase()}`),
+        this.autoEdit ? colors.success('▶ Auto-edit ON') : colors.dim('⏸ Auto-edit OFF'),
+        this.toolForgeEnabled ? colors.success('🔧 Forge ON') : colors.dim('🔧 Forge OFF'),
+        colors.success('⚫ Idle')
+      ];
+      output += statusParts.join(colors.dim(' │ ')) + colors.dim(' • ');
+      
       const shortcuts = [
         colors.dim('Tab: Complete'),
         colors.dim('↑↓: History'),
@@ -711,7 +703,7 @@ class OrionCLI {
     return output;
   }
 
-  addMessage(type, content) {
+  addMessage(type, content, skipRender = false) {
     // Handle null/undefined content
     if (content === null || content === undefined) {
       content = '';
@@ -2366,11 +2358,10 @@ ABSOLUTE REQUIREMENTS:
     if (this.toolForgeEnabled) {
       // Re-enable ToolForge
       this.toolForge.enable();
-      this.addMessage('system', colors.success('🔧 ToolForge ENABLED - Missing tools will be auto-generated'));
     } else {
       this.toolForge.disable();
-      this.addMessage('system', colors.warning('⚠️ ToolForge DISABLED - Auto tool generation turned off'));
     }
+    this.render(); // Update status bar display
   }
 
   async listForgedTools() {

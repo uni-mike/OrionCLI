@@ -9,11 +9,14 @@ import boxen from 'boxen';
 import stripAnsi from 'strip-ansi';
 import wrapAnsi from 'wrap-ansi';
 
+type ActivityStatus = 'idle' | 'processing' | 'thinking' | 'waiting' | 'error';
+
 interface RenderState {
   messages: Message[];
   inputValue: string;
   cursorPosition: number;
   isProcessing: boolean;
+  activityStatus: ActivityStatus;
   autoEditEnabled: boolean;
   currentModel: string;
   activeFile?: string;
@@ -237,7 +240,7 @@ export class TerminalRenderer {
       parts.push(chalk.green(`◆ MCP: ${this.state.mcpStatus}`));
     }
 
-    // Context usage indicator (1M token window)
+    // Context usage indicator (1M token window) - always show if available
     if (this.state.tokenCount) {
       const contextUsed = ((this.state.tokenCount / 1000000) * 100).toFixed(1);
       const contextFree = (100 - parseFloat(contextUsed)).toFixed(1);
@@ -245,11 +248,13 @@ export class TerminalRenderer {
       parts.push(contextColor(`📊 Context: ${contextFree}% free`));
     }
 
-    // Processing indicator
+    // Status indicator - always show (processing, idle, etc)
     if (this.state.isProcessing) {
       const spinner = this.getSpinner();
       const timeStr = this.state.processingTime ? ` ${this.state.processingTime}s` : '';
       parts.push(chalk.yellow(`${spinner} Processing${timeStr}`));
+    } else {
+      parts.push(chalk.green(`⚫ Idle`));
     }
 
     return chalk.dim('─'.repeat(this.terminalWidth)) + '\n' + parts.join(chalk.dim(' │ '));
