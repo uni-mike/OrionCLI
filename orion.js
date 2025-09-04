@@ -24,7 +24,7 @@ const FileTools = require('./src/tools/file-tools');
 const PermissionManager = require('./src/permissions/permission-manager');
 const PermissionPrompt = require('./src/permissions/permission-prompt');
 const TaskUnderstanding = require('./src/intelligence/task-understanding');
-const EnhancedOrchestration = require('./src/intelligence/enhanced-orchestration');
+// Enhanced orchestration removed - causes conflicts with SimpleOrchestrator
 const ProjectAwareness = require('./src/intelligence/project-awareness');
 const ContextManager = require('./src/intelligence/context-manager');
 const SimpleOrchestrator = require('./src/intelligence/simple-orchestrator');
@@ -123,7 +123,7 @@ class OrionCLI {
     
     // Intelligence systems
     this.taskUnderstanding = new TaskUnderstanding();
-    this.orchestration = new EnhancedOrchestration(); // Single orchestration system
+    // EnhancedOrchestration removed - use only SimpleOrchestrator for mega tasks
     this.projectAwareness = new ProjectAwareness();
     this.contextManager = new ContextManager();
     this.simpleOrchestrator = new SimpleOrchestrator();
@@ -1180,6 +1180,9 @@ class OrionCLI {
       console.log(colors.dim(`\n🔍 Processing input: "${input}"`));
     }
     
+    // Check for mega tasks FIRST - they must use SimpleOrchestrator with gpt-5-chat
+    const needsOrchestration = this.simpleOrchestrator.needsOrchestration(input);
+    
     // Use intelligent task understanding system
     const intentAnalysis = await this.taskUnderstanding.analyzeIntent(input);
     
@@ -1192,7 +1195,9 @@ class OrionCLI {
         priority: intentAnalysis.confidence > 0.8 ? 'high' : intentAnalysis.confidence > 0.5 ? 'medium' : 'low'
       } : 
       this.analyzeTask(input);
-    const optimalModel = this.selectModelForTask(input);
+    
+    // Force gpt-5-chat for mega tasks, otherwise use optimal model
+    const optimalModel = needsOrchestration ? 'gpt-5-chat' : this.selectModelForTask(input);
     let usingClient = this.client;
     let usingConfig = this.config;
     
@@ -1230,9 +1235,6 @@ class OrionCLI {
       if (intentAnalysis && intentAnalysis.context) {
         Object.assign(contextInfo, intentAnalysis.context);
       }
-      
-      // Check if this needs orchestration (mega tasks)
-      const needsOrchestration = this.simpleOrchestrator.needsOrchestration(input);
       
       if (process.env.DEBUG_TOOLS) {
         console.log(colors.dim(`\n🔍 Orchestration check: ${needsOrchestration ? 'YES - Mega task!' : 'NO - Regular task'}`));
@@ -1272,25 +1274,7 @@ class OrionCLI {
         }
       }
       
-      // Regular execution path for simpler tasks
-      const executionPlan = await this.orchestration.buildExecutionPlan(input, contextInfo);
-      
-      // Check if todo planning is required
-      const todoCheck = this.orchestration.requiresTodoPlanning(input, contextInfo);
-      if (todoCheck.required) {
-        // Display the execution plan with todos
-        const planDisplay = this.orchestration.formatPlanForDisplay(executionPlan);
-        this.addMessage('system', colors.info(planDisplay));
-        this.render();
-        
-        // Add todos to system prompt for AI awareness
-        contextInfo.activePlan = executionPlan;
-        contextInfo.todos = executionPlan.todos;
-      } else if (executionPlan.toolChain.length > 1) {
-        // Simple multi-tool execution
-        this.addMessage('system', colors.info(`⚙️ Executing ${executionPlan.toolChain.length} tools in sequence`));
-        this.render();
-      }
+      // For non-mega tasks, proceed with regular AI processing
       
       // Add user message to conversation history
       this.conversationHistory.push({
@@ -1424,24 +1408,7 @@ class OrionCLI {
             }
           }
           
-          // Check if there's an active plan to continue
-          // DISABLED: Auto-continuation causes recursive loop and rendering issues
-          // if (this.orchestration.activePlan) {
-          //   const planStatus = this.orchestration.getPlanStatus();
-          //   if (planStatus.remainingTodos > 0) {
-          //     // Continue with next todo automatically
-          //     this.addMessage('system', colors.info(`⏭️ Continuing with next task (${planStatus.remainingTodos} remaining)`));
-          //     this.render();
-          //     
-          //     // Process next step after short delay
-          //     setTimeout(() => {
-          //       const nextTodo = this.orchestration.activePlan.todos.find(t => t.status === 'pending');
-          //       if (nextTodo) {
-          //         this.processWithAI(`Continue with: ${nextTodo.content}`);
-          //       }
-          //     }, 500);
-          //   }
-          // }
+          // Auto-continuation disabled - use SimpleOrchestrator for mega tasks
         } else if (response) {
           // No JSON tools found - but check if response IS just JSON (shouldn't show it)
           // Skip showing response if it looks like a failed tool JSON
