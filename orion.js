@@ -387,6 +387,8 @@ class OrionCLI {
     if (this.spinnerInterval) {
       clearInterval(this.spinnerInterval);
       this.spinnerInterval = null;
+      // Clear the current line where spinner is shown
+      process.stdout.write('\r' + ' '.repeat(80) + '\r');
       // Force a full render to clear the spinner from display
       this.renderMode = 'full';
       this.render();
@@ -579,8 +581,12 @@ class OrionCLI {
   }
 
   positionCursor() {
-    // Hide terminal cursor since we use visual cursor in content
-    process.stdout.write('\x1B[?25l');
+    // Only hide cursor during processing, show it otherwise
+    if (this.isProcessing) {
+      process.stdout.write('\x1B[?25l');
+    } else {
+      process.stdout.write('\x1B[?25h');
+    }
   }
 
   addMessage(type, content) {
@@ -1300,8 +1306,16 @@ class OrionCLI {
       }
       this.isProcessing = false;
       this.stopSpinner();
-      // Force one more render to ensure UI is clean
-      this.render(true);
+      
+      // Ensure input buffer is ready for next input
+      this.inputBuffer = '';
+      this.cursorPosition = 0;
+      
+      // Force a complete redraw to ensure UI is clean
+      setTimeout(() => {
+        this.renderMode = 'full';
+        this.render();
+      }, 100);
     }
   }
 
