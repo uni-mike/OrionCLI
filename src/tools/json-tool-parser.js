@@ -243,8 +243,14 @@ class JsonToolParser {
     // Remove JSON objects that look like tool calls
     let cleaned = text;
     
-    // Remove standalone JSON objects
+    // Remove complete JSON objects (with proper braces)
     cleaned = cleaned.replace(/\{[^{}]*\{[^{}]*\}[^{}]*\}|\{[^{}]+\}/g, '');
+    
+    // Remove malformed JSON that starts with { and has "tool" but may be incomplete
+    cleaned = cleaned.replace(/\{[^}]*"tool"[^}]*(}|$)/g, '');
+    
+    // Remove incomplete JSON fragments that start with {"tool"
+    cleaned = cleaned.replace(/\{"tool"[^}]*$/g, '');
     
     // Clean up extra whitespace
     cleaned = cleaned.replace(/\n\s*\n\s*\n/g, '\n\n');

@@ -32,7 +32,14 @@
       "Read(/Users/mike.admon/UNIPATH_PROJECT/DevOpsTools/GROK/grok-cli/src/**)",
       "Read(/Users/mike.admon/UNIPATH_PROJECT/DevOpsTools/GROK/grok-cli/src/**)",
       "Read(/Users/mike.admon/UNIPATH_PROJECT/DevOpsTools/GROK/grok-cli/src/**)",
-      "Bash(git restore:*)"
+      "Bash(git restore:*)",
+      "Bash(cat:*)",
+      "Bash(./test-minimal.sh:*)",
+      "Bash(bash:*)",
+      "Bash(env)",
+      "Bash(./run-test.sh)",
+      "Bash(DEBUG_TOOLS=1 node test-simple.js)",
+      "Bash(DEBUG_TOOLS=1 node test-fixed.js)"
     ],
     "deny": [],
     "ask": []

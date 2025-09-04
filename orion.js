@@ -5,6 +5,9 @@
  * Based on original grok-cli architecture with all smart features
  */
 
+// Load environment variables from .env file
+require('dotenv').config();
+
 const readline = require('readline');
 const chalk = require('chalk');
 const boxen = require('boxen');
@@ -17,6 +20,7 @@ const marked = require('marked');
 const TerminalRenderer = require('marked-terminal').default || require('marked-terminal');
 const OrionToolRegistry = require('./src/tools/orion-tool-registry');
 const JsonToolParser = require('./src/tools/json-tool-parser');
+const FileTools = require('./src/tools/file-tools');
 const PermissionManager = require('./src/permissions/permission-manager');
 const PermissionPrompt = require('./src/permissions/permission-prompt');
 const TaskUnderstanding = require('./src/intelligence/task-understanding');
@@ -365,6 +369,8 @@ class OrionCLI {
    */
   startSpinner() {
     if (!this.spinnerInterval) {
+      // Hide cursor during processing
+      process.stdout.write('\x1B[?25l');
       this.spinnerInterval = setInterval(() => {
         this.spinnerIndex = (this.spinnerIndex + 1) % this.spinnerFrames.length;
         if (this.isProcessing) {
@@ -381,6 +387,11 @@ class OrionCLI {
     if (this.spinnerInterval) {
       clearInterval(this.spinnerInterval);
       this.spinnerInterval = null;
+      // Force a full render to clear the spinner from display
+      this.renderMode = 'full';
+      this.render();
+      // Show cursor again
+      process.stdout.write('\x1B[?25h');
     }
   }
   
@@ -1030,6 +1041,11 @@ class OrionCLI {
     this.isProcessing = true;
     this.startSpinner();
     
+    // Debug: Log when processing starts
+    if (process.env.DEBUG_TOOLS) {
+      console.log(colors.dim(`\n🔍 Processing input: "${input}"`));
+    }
+    
     // Use intelligent task understanding system
     const intentAnalysis = await this.taskUnderstanding.analyzeIntent(input);
     
@@ -1165,8 +1181,21 @@ class OrionCLI {
         }
       }
 
+      // Debug: Log API call attempt
+      if (process.env.DEBUG_TOOLS) {
+        console.log(colors.dim(`\n📡 Calling Azure OpenAI API...`));
+        console.log(colors.dim(`  Model: ${completionParams.model}`));
+        console.log(colors.dim(`  Tools provided: ${completionParams.tools ? completionParams.tools.length : 0}`));
+      }
+      
       const completion = await usingClient.chat.completions.create(completionParams);
       const response = completion.choices[0].message.content;
+      
+      // Debug: Log response received
+      if (process.env.DEBUG_TOOLS) {
+        console.log(colors.dim(`\n✅ Got response from API`));
+        console.log(colors.dim(`  Response length: ${response ? response.length : 0}`));
+      }
       
       // Handle tool calls if present (proper OpenAI format)
       if (completion.choices[0].message.tool_calls) {
@@ -1174,8 +1203,9 @@ class OrionCLI {
       }
       
       // Check for JSON tool calls in response (Azure OpenAI fallback)
+      let parsed = { toolCalls: [], cleanText: '', hasTools: false };
       if (response) {
-        const parsed = JsonToolParser.processResponse(response);
+        parsed = JsonToolParser.processResponse(response);
         
         // Debug logging
         if (process.env.DEBUG_TOOLS) {
@@ -1197,10 +1227,23 @@ class OrionCLI {
             await this.handleToolCalls([toolCall]);
           }
           
-          // Only show the cleaned response (without JSON)
+          // Show cleaned response if there is any
           if (parsed.cleanText && parsed.cleanText.trim()) {
             // Add as single message to avoid multiple renders
             this.addMessage('assistant', parsed.cleanText);
+          } else if (parsed.toolCalls.length > 0) {
+            // If ONLY tools were executed (no text), add success confirmation
+            const toolNames = parsed.toolCalls.map(tc => tc.function.name);
+            if (toolNames.includes('write_file') || toolNames.includes('create_file')) {
+              this.addMessage('assistant', '✅ File created successfully!');
+            } else if (toolNames.includes('edit_file')) {
+              this.addMessage('assistant', '✅ File updated successfully!');
+            } else if (toolNames.includes('execute_bash')) {
+              // Bash output is already shown, just confirm
+              this.addMessage('assistant', '✅ Command executed!');
+            } else if (toolNames.length > 0) {
+              this.addMessage('assistant', '✅ Done!');
+            }
           }
           
           // Check if there's an active plan to continue
@@ -1243,10 +1286,22 @@ class OrionCLI {
         });
       }
     } catch (error) {
-      this.addMessage('error', `${error.message}`);
+      console.error('Error in processWithAI:', error);
+      this.addMessage('error', `Error: ${error.message}`);
+      
+      // More detailed error info in debug mode
+      if (process.env.DEBUG_TOOLS) {
+        console.error('Full error stack:', error.stack);
+      }
     } finally {
+      // Debug: Confirm finally block executes
+      if (process.env.DEBUG_TOOLS) {
+        console.log(colors.dim('\n🏁 Finally block: Stopping spinner and clearing processing flag'));
+      }
       this.isProcessing = false;
       this.stopSpinner();
+      // Force one more render to ensure UI is clean
+      this.render(true);
     }
   }
 
@@ -1405,10 +1460,10 @@ ALWAYS:
 ✅ Output tool JSON immediately
 
 TOOL OUTPUT RULES:
-• Output ONLY the JSON tool call
-• No explanation before the JSON
-• Confirm success AFTER execution
-• One line JSON like: {"tool": "write_file", "args": {"filename": "test.txt", "content": "content here"}}
+• When using tools, output ONLY valid JSON - nothing else
+• JSON must be complete and valid: {"tool": "write_file", "args": {"filename": "test.txt", "content": "content here"}}
+• Do NOT output text before or after the JSON
+• The system will confirm success automatically - you don't need to
     
 Current Context:
 - Working Directory: ${contextInfo.workingDir}
