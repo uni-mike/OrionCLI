@@ -84,6 +84,8 @@ class OrionCLI {
     this.history = [];
     this.historyIndex = -1;
     this.conversationHistory = [];
+    this.multiLineMode = false;
+    this.multiLineBuffer = [];
     this.config = this.loadConfig();
     this.client = this.createClient();
     this.toolRegistry = new OrionToolRegistry();
@@ -719,7 +721,112 @@ class OrionCLI {
   async handleEnter() {
     const input = this.inputBuffer.trim();
     
-    if (!input) return;
+    if (!input) {
+      // If buffer is empty but we have a multi-line buffer, process it
+      if (this.multiLineBuffer && this.multiLineBuffer.length > 0) {
+        const fullInput = this.multiLineBuffer.join('\n');
+        this.multiLineBuffer = [];
+        this.multiLineMode = false;
+        
+        // Add to history
+        this.history.push(fullInput);
+        if (this.history.length > 100) this.history.shift();
+        this.historyIndex = -1;
+        
+        // Add user message
+        this.addMessage('user', fullInput);
+        
+        // Process the complete multi-line input
+        await this.processWithAI(fullInput);
+        this.render();
+      }
+      return;
+    }
+    
+    // Check if this looks like the start or continuation of a numbered list
+    const isNumberedLine = /^\d+\.\s+/.test(input);
+    
+    // Check if it's a single-line mega prompt (all operations on one line)
+    const isSingleLineMegaPrompt = input.includes('1.') && input.includes('2.') && 
+                                   input.includes('3.') && !input.includes('\n');
+    
+    // Don't enter multi-line mode for single-line mega prompts
+    if (isSingleLineMegaPrompt) {
+      // Process immediately
+    } else {
+      const startsWithExecute = /execute.*following.*\d+.*operations?/i.test(input) && 
+                                !isSingleLineMegaPrompt;
+      const looksLikeListHeader = /\d+\s+(operations?|steps?|tasks?|items?|numbered)/i.test(input) &&
+                                  !isSingleLineMegaPrompt;
+      
+      // Start multi-line mode if we detect a numbered list pattern
+      if (isNumberedLine || startsWithExecute || looksLikeListHeader || this.multiLineMode) {
+      if (!this.multiLineMode) {
+        this.multiLineMode = true;
+        this.multiLineBuffer = [];
+        this.expectedLines = 0;
+        if (process.env.DEBUG_INPUT) {
+          console.log(colors.dim(`[DEBUG] Multi-line mode started`));
+        }
+        
+        // Try to detect expected number of lines
+        const countMatch = input.match(/(\d+)\s+(operations?|steps?|tasks?|items?|numbered)/i) ||
+                          input.match(/following\s+(\d+)/i);
+        if (countMatch) {
+          this.expectedLines = parseInt(countMatch[1]);
+          if (process.env.DEBUG_INPUT) {
+            console.log(colors.dim(`[DEBUG] Expecting ${this.expectedLines} lines`));
+          }
+        } else if (process.env.DEBUG_INPUT) {
+          console.log(colors.dim(`[DEBUG] No count match found in: ${input}`));
+        }
+      }
+      
+      // Add line to buffer
+      this.multiLineBuffer.push(input);
+      if (process.env.DEBUG_INPUT) {
+        console.log(colors.dim(`[DEBUG] Buffer has ${this.multiLineBuffer.length} lines, expecting ${this.expectedLines}`));
+      }
+      
+      // Check if we should stop buffering
+      const currentNumber = input.match(/^(\d+)\./);
+      if (currentNumber && this.expectedLines > 0 && parseInt(currentNumber[1]) >= this.expectedLines) {
+        // We've reached the expected number, process it
+        const fullInput = this.multiLineBuffer.join('\n');
+        if (process.env.DEBUG_INPUT) {
+          console.log(colors.dim(`[DEBUG] Processing full input with ${this.multiLineBuffer.length} lines`));
+        }
+        this.multiLineBuffer = [];
+        this.multiLineMode = false;
+        this.expectedLines = 0;
+        
+        // Clear input
+        this.inputBuffer = '';
+        this.cursorPosition = 0;
+        
+        // Add to history
+        this.history.push(fullInput);
+        if (this.history.length > 100) this.history.shift();
+        this.historyIndex = -1;
+        
+        // Add user message
+        this.addMessage('user', fullInput);
+        
+        // Process the complete multi-line input
+        await this.processWithAI(fullInput);
+        this.render();
+        return;
+      }
+      
+      // Clear input buffer for next line
+      this.inputBuffer = '';
+      this.cursorPosition = 0;
+      
+      // Don't process yet, wait for more lines
+      this.render();
+      return;
+    }
+    }
     
     // Add to history
     this.history.push(input);

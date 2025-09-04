@@ -21,84 +21,101 @@ class SimpleOrchestrator {
     return false;
   }
   
+  // Parse a single step
+  parseStep(stepNumber, stepText) {
+    let action = 'unknown';
+    let target = '';
+    let content = '';
+    
+    // Directory creation
+    if (stepText.match(/create\s+(directory|dir|folder)/i)) {
+      action = 'create_dir';
+      target = stepText.match(/(?:directory|dir|folder)\s+(\S+)/i)?.[1] || '';
+    } 
+    // File creation with various formats (including Dockerfile without extension)
+    else if (stepText.match(/create\s+(?:file\s+)?(\S+(?:\.\w+|Dockerfile|SUMMARY\.md|README\.md))/i)) {
+      action = 'create_file';
+      // Match various file patterns including special files
+      const fileMatch = stepText.match(/(\S+\/?\S*?(?:Dockerfile|SUMMARY\.md|README\.md|\.\w+))\s+(?:with\s+)?(?:"([^"]+)"|'([^']+)'|(.+?)(?:\s|$))/i);
+      if (fileMatch) {
+        target = fileMatch[1];
+        content = fileMatch[2] || fileMatch[3] || fileMatch[4] || '';
+        
+        // Handle JSON content
+        if (stepText.includes('{') && stepText.includes('}')) {
+          const jsonMatch = stepText.match(/\{[^}]+\}/);
+          if (jsonMatch) {
+            content = jsonMatch[0];
+          }
+        }
+        
+        // Special handling for SUMMARY.md
+        if (target.includes('SUMMARY.md') && stepText.match(/listing|list/i)) {
+          content = '# Summary\n\nAll files and directories created in this project.';
+        }
+      }
+    }
+    // List files
+    else if (stepText.match(/list\s+(all\s+)?files/i)) {
+      action = 'list_files';
+      target = stepText.match(/in\s+(\S+)/i)?.[1] || '.';
+    }
+    // Read file
+    else if (stepText.match(/read\s+(\S+)/i)) {
+      action = 'read_file';
+      target = stepText.match(/read\s+(\S+)/i)?.[1] || '';
+    }
+    // Execute bash command
+    else if (stepText.match(/execute\s+bash|bash:|echo|find|wc|date/i)) {
+      action = 'bash_command';
+      // Extract command after colon or "command:"
+      const cmdMatch = stepText.match(/(?:bash\s+command:|bash:)\s*(.+)/i) || 
+                       stepText.match(/(?:echo|find|wc|date).*/i);
+      if (cmdMatch) {
+        content = cmdMatch[1] || cmdMatch[0];
+      }
+    }
+    // Count files
+    else if (stepText.match(/count\s+(total\s+)?files/i)) {
+      action = 'bash_command';
+      const dirMatch = stepText.match(/(?:in|from)\s+(\S+)/i);
+      const dir = dirMatch ? dirMatch[1] : 'mega-test';
+      content = `find ${dir} -type f | wc -l`;
+    }
+    
+    return {
+      number: parseInt(stepNumber),
+      text: stepText,
+      action,
+      target,
+      content
+    };
+  }
+  
   // Parse numbered list into steps
   parseSteps(input) {
     const steps = [];
-    const lines = input.split('\n');
     
-    for (const line of lines) {
-      const match = line.match(/^(\d+)\.\s+(.+)/);
-      if (match) {
-        const stepText = match[2];
-        
-        // Parse the step into action and details
-        let action = 'unknown';
-        let target = '';
-        let content = '';
-        
-        // Directory creation
-        if (stepText.match(/create\s+(directory|dir|folder)/i)) {
-          action = 'create_dir';
-          target = stepText.match(/(?:directory|dir|folder)\s+(\S+)/i)?.[1] || '';
-        } 
-        // File creation with various formats (including Dockerfile without extension)
-        else if (stepText.match(/create\s+(?:file\s+)?(\S+(?:\.\w+|Dockerfile|SUMMARY\.md|README\.md))/i)) {
-          action = 'create_file';
-          // Match various file patterns including special files
-          const fileMatch = stepText.match(/(\S+\/?\S*?(?:Dockerfile|SUMMARY\.md|README\.md|\.\w+))\s+(?:with\s+)?(?:"([^"]+)"|'([^']+)'|(.+?)(?:\s|$))/i);
-          if (fileMatch) {
-            target = fileMatch[1];
-            content = fileMatch[2] || fileMatch[3] || fileMatch[4] || '';
-            
-            // Handle JSON content
-            if (stepText.includes('{') && stepText.includes('}')) {
-              const jsonMatch = stepText.match(/\{[^}]+\}/);
-              if (jsonMatch) {
-                content = jsonMatch[0];
-              }
-            }
-            
-            // Special handling for SUMMARY.md
-            if (target.includes('SUMMARY.md') && stepText.match(/listing|list/i)) {
-              content = '# Summary\n\nAll files and directories created in this project.';
-            }
-          }
+    // Check if it's a single line with multiple numbered items
+    if (input.includes('1.') && input.includes('2.') && !input.includes('\n')) {
+      // Split by numbered patterns (e.g., "1. ", "2. ", etc.)
+      const parts = input.split(/(?=\d+\.\s)/);
+      for (const part of parts) {
+        const match = part.match(/^(\d+)\.\s+(.+)/);
+        if (match) {
+          const stepText = match[2].trim();
+          steps.push(this.parseStep(match[1], stepText));
         }
-        // List files
-        else if (stepText.match(/list\s+(all\s+)?files/i)) {
-          action = 'list_files';
-          target = stepText.match(/in\s+(\S+)/i)?.[1] || '.';
+      }
+    } else {
+      // Multi-line format
+      const lines = input.split('\n');
+      for (const line of lines) {
+        const match = line.match(/^(\d+)\.\s+(.+)/);
+        if (match) {
+          const stepText = match[2];
+          steps.push(this.parseStep(match[1], stepText));
         }
-        // Read file
-        else if (stepText.match(/read\s+(\S+)/i)) {
-          action = 'read_file';
-          target = stepText.match(/read\s+(\S+)/i)?.[1] || '';
-        }
-        // Execute bash command
-        else if (stepText.match(/execute\s+bash|bash:|echo|find|wc|date/i)) {
-          action = 'bash_command';
-          // Extract command after colon or "command:"
-          const cmdMatch = stepText.match(/(?:bash\s+command:|bash:)\s*(.+)/i) || 
-                           stepText.match(/(?:echo|find|wc|date).*/i);
-          if (cmdMatch) {
-            content = cmdMatch[1] || cmdMatch[0];
-          }
-        }
-        // Count files
-        else if (stepText.match(/count\s+(total\s+)?files/i)) {
-          action = 'bash_command';
-          const dirMatch = stepText.match(/(?:in|from)\s+(\S+)/i);
-          const dir = dirMatch ? dirMatch[1] : 'mega-test';
-          content = `find ${dir} -type f | wc -l`;
-        }
-        
-        steps.push({
-          number: parseInt(match[1]),
-          text: stepText,
-          action,
-          target,
-          content
-        });
       }
     }
     
