@@ -2027,8 +2027,20 @@ ABSOLUTE REQUIREMENTS:
     this.addMessage('system', colors.primary('🔧 Forged Tools:'));
     for (const tool of tools) {
       this.addMessage('system', colors.info(
-        `  • ${tool.name} v${tool.activeVersion} (${tool.versions} versions)`
+        `  • ${tool.name} v${tool.activeVersion} (${tool.versions} version${tool.versions > 1 ? 's' : ''})`
       ));
+      
+      // Show version details if available
+      if (this.toolForge.forge) {
+        const versions = await this.toolForge.forge.listVersions(tool.name);
+        if (versions && versions.length > 0) {
+          versions.slice(-2).forEach(v => {
+            this.addMessage('system', colors.dim(
+              `    - v${v.version} ${v.active ? '(active)' : ''}: ${v.notes}`
+            ));
+          });
+        }
+      }
     }
     
     // Show recent history

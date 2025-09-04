@@ -170,6 +170,7 @@ async function testToolForge() {
       console.log(colors.success(`✅ Version tracking works: ${versions.length} version(s)`));
       versions.forEach(v => {
         console.log(colors.dim(`   v${v.version} - ${v.created} ${v.active ? '(active)' : ''}`));
+        console.log(colors.dim(`     Notes: ${v.notes}`));
       });
       results.passed.push('Version tracking');
     } else {

@@ -1,5 +1,45 @@
 {
-  "tools": {},
-  "history": [],
-  "activeVersions": {}
+  "tools": {
+    "calculate_hash": {
+      "versions": [
+        {
+          "version": "1756972934027",
+          "path": "/Users/mike.admon/UNIPATH_PROJECT/OrionCLI/.tool-forge/versions/calculate_hash_v1756972934027.js",
+          "spec": {
+            "toolName": "calculate_hash",
+            "functionality": "Calculate hash with improved performance",
+            "parameters": [
+              "filename",
+              "algorithm",
+              "encoding"
+            ],
+            "returnType": "object",
+            "category": "file_ops"
+          },
+          "created": "2025-09-04T08:02:14.027Z",
+          "testsPassed": true
+        }
+      ],
+      "activeVersion": "1756972933968",
+      "created": "2025-09-04T08:02:14.025Z"
+    }
+  },
+  "history": [
+    {
+      "action": "register",
+      "tool": "calculate_hash",
+      "version": "1756972933968",
+      "timestamp": "2025-09-04T08:02:14.026Z"
+    },
+    {
+      "action": "rollback",
+      "tool": "calculate_hash",
+      "fromVersion": "1756972933968",
+      "toVersion": "1756972933968",
+      "timestamp": "2025-09-04T08:02:14.028Z"
+    }
+  ],
+  "activeVersions": {
+    "calculate_hash": "1756972933968"
+  }
 }
