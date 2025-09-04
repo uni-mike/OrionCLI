@@ -1860,7 +1860,12 @@ class OrionCLI {
 
 🚀 PRIME DIRECTIVE: BE DECISIVE - DON'T ASK, JUST DO!
 
-When user asks for:
+FOR CONVERSATIONAL QUERIES (greetings, questions, general chat):
+• Respond naturally and helpfully without tools
+• Be friendly and concise
+• Offer assistance when appropriate
+
+FOR ACTION REQUESTS:
 • "Create a mermaid diagram" → Create flowchart.md with example diagram NOW
 • "Create a file" → Create example.txt with sample content NOW  
 • "Create X" → Create it with reasonable defaults NOW
@@ -1873,10 +1878,10 @@ NEVER SAY:
 ❌ "Would you prefer X or Y?"
 
 ALWAYS:
-✅ Take immediate action
+✅ Take immediate action when tools are needed
 ✅ Use reasonable defaults
 ✅ Create something useful
-✅ Output tool JSON immediately
+✅ Respond conversationally when no action is needed
 
 TOOL OUTPUT RULES:
 • When using tools, output ONLY valid JSON - nothing else
@@ -1928,7 +1933,7 @@ Current Context:
 
 Available Tools: ${taskInfo.needsTools ? taskInfo.tools.join(', ') : 'none required'}
 
-${taskInfo.needsTools ? '\n⚠️ TOOLS ARE AVAILABLE - USE THEM PROPERLY, NOT AS JSON OUTPUT!' : ''}`;
+${taskInfo.needsTools ? '\n⚠️ TOOLS ARE AVAILABLE - USE THEM when needed for actions, not for simple conversation!' : '\n💬 CONVERSATIONAL MODE - No tools needed, just respond naturally!'}`;
 
     // Task-specific instructions
     if (taskInfo.type === 'time query') {
