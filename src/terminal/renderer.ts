@@ -99,29 +99,38 @@ export class TerminalRenderer {
 
     this.renderTimeout = setTimeout(() => {
       this._performRender();
-    }, 16); // ~60fps max
+    }, 100); // 10fps max - reduces flicker for CLI
   }
 
   private _performRender(): void {
     const output: string[] = [];
     
-    // Clear screen and reset cursor
-    output.push('\x1B[2J\x1B[H');
+    // Only clear screen on first render or when terminal size changes
+    if (!this.lastRender || this.shouldFullRerender()) {
+      output.push('\x1B[2J\x1B[H');
+    } else {
+      // Move cursor to top for incremental updates
+      output.push('\x1B[H');
+    }
 
     // Render header/logo
-    output.push(this.renderHeader());
+    const headerContent = this.renderHeader();
+    output.push(headerContent);
     output.push('');
 
-    // Render chat history
+    // Render chat history (this is the main content that changes)
     const chatHeight = this.calculateChatHeight();
-    output.push(this.renderChatHistory(chatHeight));
+    const chatContent = this.renderChatHistory(chatHeight);
+    output.push(chatContent);
     
     // Render status line
-    output.push(this.renderStatusLine());
+    const statusContent = this.renderStatusLine();
+    output.push(statusContent);
     output.push('');
 
     // Render input box
-    output.push(this.renderInputBox());
+    const inputContent = this.renderInputBox();
+    output.push(inputContent);
 
     // Render overlays (confirmations, suggestions)
     if (this.state.confirmationDialog) {
@@ -135,12 +144,31 @@ export class TerminalRenderer {
     
     // Only write if content changed (reduces flicker)
     if (rendered !== this.lastRender) {
+      // Clear any remaining content from previous render
+      if (this.lastRender && rendered.length < this.lastRender.length) {
+        output.push('\x1B[J'); // Clear from cursor to end of screen
+      }
+      
       process.stdout.write(rendered);
       this.lastRender = rendered;
     }
 
     // Position cursor in input box
     this.positionCursor();
+  }
+
+  private shouldFullRerender(): boolean {
+    // Check if terminal dimensions have changed or if this is first render
+    const currentCols = process.stdout.columns || 80;
+    const currentRows = process.stdout.rows || 24;
+    
+    if (this.terminalWidth !== currentCols || this.terminalHeight !== currentRows) {
+      this.terminalWidth = currentCols;
+      this.terminalHeight = currentRows;
+      return true;
+    }
+    
+    return false;
   }
 
   private renderHeader(): string {
@@ -209,12 +237,19 @@ export class TerminalRenderer {
       parts.push(chalk.green(`◆ MCP: ${this.state.mcpStatus}`));
     }
 
+    // Context usage indicator (1M token window)
+    if (this.state.tokenCount) {
+      const contextUsed = ((this.state.tokenCount / 1000000) * 100).toFixed(1);
+      const contextFree = (100 - parseFloat(contextUsed)).toFixed(1);
+      const contextColor = parseFloat(contextUsed) > 80 ? chalk.red : parseFloat(contextUsed) > 60 ? chalk.yellow : chalk.green;
+      parts.push(contextColor(`📊 Context: ${contextFree}% free`));
+    }
+
     // Processing indicator
     if (this.state.isProcessing) {
       const spinner = this.getSpinner();
       const timeStr = this.state.processingTime ? ` ${this.state.processingTime}s` : '';
-      const tokenStr = this.state.tokenCount ? ` (${this.state.tokenCount} tokens)` : '';
-      parts.push(chalk.yellow(`${spinner} Processing${timeStr}${tokenStr}`));
+      parts.push(chalk.yellow(`${spinner} Processing${timeStr}`));
     }
 
     return chalk.dim('─'.repeat(this.terminalWidth)) + '\n' + parts.join(chalk.dim(' │ '));
@@ -383,6 +418,19 @@ export class TerminalRenderer {
   // Public API methods for updating state
 
   public addMessage(message: Omit<Message, 'id' | 'timestamp'>): void {
+    // Check for duplicate messages to prevent UI duplication
+    const isDuplicate = this.state.messages.some(existingMsg => {
+      // Check if message content and type match exactly
+      return existingMsg.type === message.type && 
+             existingMsg.content === message.content &&
+             existingMsg.toolName === message.toolName;
+    });
+    
+    if (isDuplicate) {
+      // Don't add duplicate messages, just return
+      return;
+    }
+    
     this.state.messages.push({
       ...message,
       id: Date.now().toString(),
@@ -414,6 +462,11 @@ export class TerminalRenderer {
 
   public setActiveFile(file?: string): void {
     this.state.activeFile = file;
+    this.render();
+  }
+
+  public setTokenCount(count: number): void {
+    this.state.tokenCount = count;
     this.render();
   }
 
