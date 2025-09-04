@@ -45,7 +45,8 @@
       "Bash(DEBUG_TOOLS=1 node test-mega-enhanced.js)",
       "Bash(DEBUG_TOOLS=1 timeout 30 node test-orion-orchestration.js)",
       "Bash(DEBUG_TOOLS=1 node test-orion-orchestration.js)",
-      "Bash(pkill:*)"
+      "Bash(pkill:*)",
+      "Bash(git pull:*)"
     ],
     "deny": [],
     "ask": []
