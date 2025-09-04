@@ -130,7 +130,7 @@ class OrionCLI {
     
     // Experimental ToolForge integration
     this.toolForge = new ToolForgeIntegration();
-    this.toolForgeEnabled = false; // Disabled by default
+    this.toolForgeEnabled = true; // Enabled by default for auto tool generation
     
     // Permission system
     this.permissionManager = new PermissionManager();
@@ -242,6 +242,17 @@ class OrionCLI {
     
     // Welcome message
     this.addMessage('system', `Welcome to OrionCLI! Type ${colors.primary('/help')} for commands or start chatting.`);
+    
+    // Initialize and enable ToolForge
+    if (this.toolForge && this.toolForgeEnabled) {
+      await this.toolForge.init(
+        { client: this.client, config: this.loadConfig.bind(this), createClient: this.createClient.bind(this) },
+        this.toolRegistry
+      );
+      this.toolForge.enable();
+      this.addMessage('system', colors.dim('🔧 ToolForge enabled - missing tools will be auto-generated'));
+    }
+    
     this.render();
   }
 
@@ -1000,8 +1011,8 @@ class OrionCLI {
     this.addMessage('system', colors.success('/context') + '     - Show context & token stats');
     this.addMessage('system', colors.success('/tools') + '       - Show 54+ tools');
     this.addMessage('system', colors.success('/permissions') + '  - Manage permissions');
-    this.addMessage('system', colors.success('/forge') + '       - Toggle ToolForge (experimental)');
-    this.addMessage('system', colors.success('/forge-list') + '  - List forged tools');
+    this.addMessage('system', colors.success('/forge') + '       - Toggle ToolForge (ON by default)');
+    this.addMessage('system', colors.success('/forge-list') + '  - List auto-generated tools');
     this.addMessage('system', colors.success('/about') + '       - About OrionCLI');
     this.addMessage('system', colors.success('/exit') + '        - Quit');
     
@@ -2174,18 +2185,12 @@ ABSOLUTE REQUIREMENTS:
     this.toolForgeEnabled = !this.toolForgeEnabled;
     
     if (this.toolForgeEnabled) {
-      // Initialize ToolForge with current context
-      await this.toolForge.init(
-        { client: this.client, config: this.loadConfig.bind(this), createClient: this.createClient.bind(this) },
-        this.toolRegistry
-      );
+      // Re-enable ToolForge
       this.toolForge.enable();
-      this.addMessage('system', colors.success('🔧 ToolForge ENABLED - Experimental self-improving tool creation active'));
-      this.addMessage('system', colors.warning('⚠️  Warning: This is experimental. Tools will be auto-generated and tested.'));
-      this.addMessage('system', colors.dim('Use /forge-rollback to revert problematic tools'));
+      this.addMessage('system', colors.success('🔧 ToolForge ENABLED - Missing tools will be auto-generated'));
     } else {
       this.toolForge.disable();
-      this.addMessage('system', colors.dim('🔧 ToolForge DISABLED'));
+      this.addMessage('system', colors.warning('⚠️ ToolForge DISABLED - Auto tool generation turned off'));
     }
   }
 
