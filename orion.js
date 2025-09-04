@@ -27,7 +27,6 @@ const TaskUnderstanding = require('./src/intelligence/task-understanding');
 const EnhancedOrchestration = require('./src/intelligence/enhanced-orchestration');
 const ProjectAwareness = require('./src/intelligence/project-awareness');
 const ContextManager = require('./src/intelligence/context-manager');
-const AdaptiveOrchestrator = require('./src/intelligence/adaptive-orchestrator');
 const SimpleOrchestrator = require('./src/intelligence/simple-orchestrator');
 const ToolForgeIntegration = require('./src/experimental/tool-forge-integration');
 const { exec } = require('child_process');
@@ -127,8 +126,7 @@ class OrionCLI {
     this.orchestration = new EnhancedOrchestration(); // Single orchestration system
     this.projectAwareness = new ProjectAwareness();
     this.contextManager = new ContextManager();
-    this.adaptiveOrchestrator = new AdaptiveOrchestrator();
-    this.simpleOrchestrator = new SimpleOrchestrator(); // Simpler alternative
+    this.simpleOrchestrator = new SimpleOrchestrator();
     
     // Experimental ToolForge integration
     this.toolForge = new ToolForgeIntegration();
