@@ -775,6 +775,11 @@ class OrionCLI {
     if (this.messages.length > 500) {
       this.messages = this.messages.slice(-400);
     }
+    
+    // Force immediate render for assistant messages to show responses immediately
+    if (type === 'assistant') {
+      this._performRender();
+    }
   }
 
   insertChar(char) {
@@ -1664,8 +1669,8 @@ class OrionCLI {
       this.inputBuffer = '';
       this.cursorPosition = 0;
       
-      // Force immediate render to show completed response
-      this.render();
+      // Force immediate render to show completed response - bypass throttling
+      this._performRender();
     }
   }
 
